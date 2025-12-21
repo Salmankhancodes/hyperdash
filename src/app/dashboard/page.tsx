@@ -1,45 +1,49 @@
 "use client"
 import { FPSCounter } from "@/components/fpscounter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEffect, useRef, useState } from "react";
-const WORK_FACTOR = 50; // tune this
+import useEventStore from "@/store/useEventStore";
+import { useEffect, useRef } from "react";
 export default function DashboardPage() {
   const workerRef = useRef<Worker | null>(null);
-  const [eventThisSec, setEventThisSec] = useState(0);
-  const [totalEvents, setTotalEvents] = useState(0);
   const renderCount = useRef(0);
-  
+  const {
+    eventThisSec,
+    totalEvents,
+    setEventThisSec,
+    incrementTotalEvents,
+  } = useEventStore();
+
   useEffect(() => {
     renderCount.current += 1;
   });
 
-useEffect(() => {
-  workerRef.current = new Worker(
-    new URL("../../workers/eventWorkers.ts", import.meta.url)
-  );
+  useEffect(() => {
+    workerRef.current = new Worker(
+      new URL("../../workers/eventWorkers.ts", import.meta.url)
+    );
 
-  workerRef.current.onmessage = (e) => {
-    const { processed } = e.data;
-    setTotalEvents((prev) => prev + processed);
-  };
+    workerRef.current.onmessage = (e) => {
+      const { processed } = e.data;
+      incrementTotalEvents(processed);
+    };
 
-  return () => {
-    workerRef.current?.terminate();
-  };
-}, []);
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
 
-useEffect(() => {
-  const arr: number[] = []; // local array simulating data window
+  useEffect(() => {
+    const arr: number[] = []; // local array simulating data window
 
-  const interval = setInterval(() => {
-    const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
-    setEventThisSec(newEvents);
-    workerRef.current?.postMessage(newEvents);
-  }, 500); // 10 updates/sec
+    const interval = setInterval(() => {
+      const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
+      setEventThisSec(newEvents);
+      workerRef.current?.postMessage(newEvents);
+    }, 500); // 10 updates/sec
 
-  return () => clearInterval(interval);
+    return () => clearInterval(interval);
 
-}, []);
+  }, []);
 
   return (
     <div className="p-8 space-y-6 ml-52">
@@ -49,7 +53,7 @@ useEffect(() => {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Events/sec: {eventThisSec}      
+            Events/sec: {eventThisSec}
           </p>
           <p className="text-sm text-muted-foreground">
             Total events: {totalEvents}
