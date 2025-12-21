@@ -1,21 +1,42 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+
+const MAX_EVENTS = 5000;
 
 interface EventState {
   eventThisSec: number;
   totalEvents: number;
-  setEventThisSec: (newValue: number) => void;
-  incrementTotalEvents: (newValue: number) => void;
+  eventsBuffer: number[];
+
+  setEventThisSec: (val: number) => void;
+  incrementTotalEvents: (val: number) => void;
+  pushEvents: (count: number) => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
   eventThisSec: 0,
   totalEvents: 0,
+  eventsBuffer: [],
 
-  setEventThisSec: (newValue: number) =>
-    set({ eventThisSec: newValue }),
+  setEventThisSec: (val) => set({ eventThisSec: val }),
 
-  incrementTotalEvents: (newValue: number) =>
-    set((state) => ({ totalEvents: state.totalEvents + newValue })),
+  incrementTotalEvents: (val) =>
+    set((state) => ({
+      totalEvents: state.totalEvents + val,
+    })),
+
+  pushEvents: (count) =>
+    set((state) => {
+      const newEvents = Array.from({ length: count }, () => Date.now());
+
+      const merged = [...state.eventsBuffer, ...newEvents];
+
+      return {
+        eventsBuffer:
+          merged.length > MAX_EVENTS
+            ? merged.slice(merged.length - MAX_EVENTS)
+            : merged,
+      };
+    }),
 }));
 
 export default useEventStore;

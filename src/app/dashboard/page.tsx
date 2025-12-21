@@ -6,11 +6,14 @@ import { useEffect, useRef } from "react";
 export default function DashboardPage() {
   const workerRef = useRef<Worker | null>(null);
   const renderCount = useRef(0);
+  const bufferedTotalRef = useRef(0);
+
   const {
     eventThisSec,
     totalEvents,
     setEventThisSec,
     incrementTotalEvents,
+    pushEvents
   } = useEventStore();
 
   useEffect(() => {
@@ -24,7 +27,7 @@ export default function DashboardPage() {
 
     workerRef.current.onmessage = (e) => {
       const { processed } = e.data;
-      incrementTotalEvents(processed);
+      bufferedTotalRef.current += processed;
     };
 
     return () => {
@@ -33,17 +36,32 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const arr: number[] = []; // local array simulating data window
-
     const interval = setInterval(() => {
       const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
       setEventThisSec(newEvents);
+      console.log("new event value", newEvents)
       workerRef.current?.postMessage(newEvents);
     }, 500); // 10 updates/sec
 
     return () => clearInterval(interval);
 
   }, []);
+
+  useEffect(() => {
+    const flushInterval = setInterval(() => {
+      const value = bufferedTotalRef.current;
+      if (value > 0) {
+        console.log("batched value",value)
+        incrementTotalEvents(value);
+        pushEvents(value);
+        bufferedTotalRef.current = 0;
+      }
+    }, 100); // batching window
+
+    return () => clearInterval(flushInterval);
+  }, []);
+
+
 
   return (
     <div className="p-8 space-y-6 ml-52">
