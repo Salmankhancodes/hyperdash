@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 
 export function FPSCounter() {
+  // FPS is kept local intentionally to avoid global re-renders.
+  // This mirrors how performance metrics are usually observed, not stored.
+
   const frameCount = useRef(0);
   const lastTime = useRef(0);
   const [fps, setFps] = useState(0);

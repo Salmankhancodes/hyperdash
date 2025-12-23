@@ -43,7 +43,6 @@ export default function DashboardPage() {
     const interval = setInterval(() => {
       const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
       setEventThisSec(newEvents);
-      console.log("new event value", newEvents)
       if(workerEnabled){
         workerRef.current?.postMessage(newEvents);
       }
