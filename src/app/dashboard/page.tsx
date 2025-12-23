@@ -1,19 +1,23 @@
 "use client"
 import { FPSCounter } from "@/components/fpscounter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { computeData } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
 import { useEffect, useRef } from "react";
 export default function DashboardPage() {
   const workerRef = useRef<Worker | null>(null);
   const renderCount = useRef(0);
   const bufferedTotalRef = useRef(0);
-
+  const mainThreadArrRef = useRef<number[]>([]);
+  const flushCount = useRef(0);
   const {
     eventThisSec,
     totalEvents,
     setEventThisSec,
     incrementTotalEvents,
-    pushEvents
+    pushEvents,
+    workerEnabled,
+    batchInterval
   } = useEventStore();
 
   useEffect(() => {
@@ -40,7 +44,13 @@ export default function DashboardPage() {
       const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
       setEventThisSec(newEvents);
       console.log("new event value", newEvents)
-      workerRef.current?.postMessage(newEvents);
+      if(workerEnabled){
+        workerRef.current?.postMessage(newEvents);
+      }
+      else {
+      const computedValue = computeData(newEvents, mainThreadArrRef.current)
+      bufferedTotalRef.current += newEvents;
+      }
     }, 500); // 10 updates/sec
 
     return () => clearInterval(interval);
@@ -51,15 +61,15 @@ export default function DashboardPage() {
     const flushInterval = setInterval(() => {
       const value = bufferedTotalRef.current;
       if (value > 0) {
-        console.log("batched value",value)
+        flushCount.current += 1;
         incrementTotalEvents(value);
         pushEvents(value);
         bufferedTotalRef.current = 0;
       }
-    }, 100); // batching window
+    }, batchInterval); // batching window
 
     return () => clearInterval(flushInterval);
-  }, []);
+  }, [batchInterval]);
 
 
 
@@ -86,6 +96,8 @@ export default function DashboardPage() {
         <CardContent>
           <p className="text-sm text-muted-foreground">FPS: <FPSCounter /></p>
           <p className="text-sm text-muted-foreground">Dashboard renders: {renderCount.current}</p>
+          <p className="text-sm text-muted-foreground">Batch flushes: {flushCount.current}</p>
+
         </CardContent>
       </Card>
       <Card>
