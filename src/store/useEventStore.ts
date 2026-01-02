@@ -8,13 +8,11 @@ interface EventState {
   eventsBuffer: number[];
   workerEnabled: boolean;
   batchInterval: number
-  flushCount: number;
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
   incrementTotalEvents: (val: number) => void;
   pushEvents: (count: number) => void;
-  incrementFlushCount: () => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -22,8 +20,7 @@ const useEventStore = create<EventState>((set) => ({
   totalEvents: 0,
   eventsBuffer: [],
   workerEnabled: true,
-  batchInterval: 10,
-  flushCount: 0,
+  batchInterval: 100,
   setEventThisSec: (val) => set({ eventThisSec: val }),
   toggleWorker: () => set((state) => {
     return {
@@ -39,7 +36,7 @@ const useEventStore = create<EventState>((set) => ({
 
   pushEvents: (count) =>
     set((state) => {
-      const newEvents = Array.from({ length: count }, () => Date.now());
+      const newEvents = Array.from({ length: count }, () => Math.floor(Math.random() * 100));
 
       const merged = [...state.eventsBuffer, ...newEvents];
 
@@ -50,7 +47,6 @@ const useEventStore = create<EventState>((set) => ({
             : merged,
       };
     }),
-  incrementFlushCount: () => set((s) => ({ flushCount: s.flushCount + 1 })),
 }));
 
 export default useEventStore;

@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-const WORK_FACTOR = 50; // tune this
+const WORK_FACTOR = 500; // tune this
 export function computeData(newEvents: number, arr: number[]){
     // --- HEAVY WORK START ---
     for (let i = 0; i < newEvents * WORK_FACTOR; i++) {

@@ -1,21 +1,33 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useRef } from "react";
+import WidgetContainer from "./WidgetContainer";
 import { FPSCounter } from "@/components/fpscounter";
-import useEventStore from "@/store/useEventStore";
 
-export default function PerformanceStatsWidget() {
-  const flushCount = useEventStore((s) => s.flushCount);
+interface Props {
+  flushCount: number;
+}
+
+const PerformanceStatsWidget = ({ flushCount }: Props) => {
+    const renderCount = useRef(0);
+  
+  useEffect(() => {
+    renderCount.current += 1;
+  });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Performance</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1 text-sm text-muted-foreground">
-        <div>FPS: <FPSCounter /></div>
-        <div>Batch flushes: {flushCount}</div>
-      </CardContent>
-    </Card>
+    <WidgetContainer title="Performance">
+      <p className="text-sm text-muted-foreground">
+        FPS: <FPSCounter />
+      </p>
+      <p className="text-sm text-muted-foreground">
+        Dashboard renders: {renderCount.current}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        Batch flushes: {flushCount}
+      </p>
+    </WidgetContainer>
   );
-}
+};
+
+export default PerformanceStatsWidget;
