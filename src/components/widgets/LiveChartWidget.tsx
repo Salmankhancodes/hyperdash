@@ -17,8 +17,11 @@ const LiveChartWidget = () => {
   const eventsBuffer = useEventStore((s) => s.eventsBuffer);
   useEffect(() => {
     const interval = setInterval(() => {
-      setChartData([...renderBufferRef.current]);
-    }, 150); // redraw every 150ms ONLY
+const MAX_POINTS = 200;
+
+setChartData(prev =>
+  [...prev, ...renderBufferRef.current].slice(-MAX_POINTS)
+);    }, 150); // redraw every 150ms ONLY
 
     return () => clearInterval(interval);
   }, []);

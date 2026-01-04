@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-const MAX_EVENTS = 5000;
+const MAX_EVENTS = 2000;
 
 interface EventState {
   eventThisSec: number;

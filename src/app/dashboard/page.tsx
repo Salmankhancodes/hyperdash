@@ -3,7 +3,7 @@ import { FPSCounter } from "@/components/fpscounter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EventStatsWidget from "@/components/widgets/EventStatsWidget";
 import LiveChartWidget from "@/components/widgets/LiveChartWidget";
-import LogsWidget from "@/components/widgets/LogWidget";
+import LogWidget from "@/components/widgets/LogWidget";
 import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget";
 import { computeData } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
@@ -92,7 +92,7 @@ export default function DashboardPage() {
     <EventStatsWidget />
       <PerformanceStatsWidget flushCount={flushCount.current} />
       <LiveChartWidget />
-      <LogsWidget />
+      <LogWidget />
     </div>
   );
 }
