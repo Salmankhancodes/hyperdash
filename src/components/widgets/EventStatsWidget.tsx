@@ -1,7 +1,9 @@
+import { useRenderCount } from '@/hooks/useRenderCount'
 import WidgetContainer from './WidgetContainer'
 import useEventStore from '@/store/useEventStore'
 
 const EventStatsWidget = () => {
+  useRenderCount('EventStatsWidget')
   const {
     eventThisSec,
     totalEvents

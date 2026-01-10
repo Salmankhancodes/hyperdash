@@ -1,96 +1,110 @@
-"use client"
-import { FPSCounter } from "@/components/fpscounter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { useEffect, useRef } from "react";
 import EventStatsWidget from "@/components/widgets/EventStatsWidget";
 import LiveChartWidget from "@/components/widgets/LiveChartWidget";
 import LogWidget from "@/components/widgets/LogWidget";
 import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget";
 import { computeData } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
-import { useEffect, useRef } from "react";
+import { useRenderCount } from "@/hooks/useRenderCount";
+
 export default function DashboardPage() {
+  useRenderCount("Dashboard page");
+
+  /* ---------------- refs (NO RE-RENDERS) ---------------- */
+
   const workerRef = useRef<Worker | null>(null);
   const bufferedTotalRef = useRef(0);
   const mainThreadArrRef = useRef<number[]>([]);
-  const flushCount = useRef(0);
-  const {
-    setEventThisSec,
-    incrementTotalEvents,
-    pushEvents,
-    workerEnabled,
-    batchInterval
-  } = useEventStore();
+  const flushCountRef = useRef(0);
 
-  /**
- * generate event
- * for every generated event
- * - update current event in store - 1
- * - process data based on worker toggle
- * - update buffer refrence - 2
- * clean event generator
- */
+  const workerEnabledRef = useRef(
+    useEventStore.getState().workerEnabled
+  );
+
+  const batchIntervalRef = useRef(
+    useEventStore.getState().batchInterval
+  );
+
+  /* ---------------- store actions (stable) ---------------- */
+
+  const setEventThisSec = useEventStore((s) => s.setEventThisSec);
+  const incrementTotalEvents = useEventStore((s) => s.incrementTotalEvents);
+  const pushEvents = useEventStore((s) => s.pushEvents);
+
+  /* ---------------- keep refs in sync ---------------- */
+
+  useEffect(() => {
+    const unsub = useEventStore.subscribe((state) => {
+      workerEnabledRef.current = state.workerEnabled;
+      batchIntervalRef.current = state.batchInterval;
+    });
+
+    return unsub;
+  }, []);
+
+  /* ---------------- event generator ---------------- */
 
   useEffect(() => {
     const interval = setInterval(() => {
       const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
+
       setEventThisSec(newEvents);
-      if (workerEnabled) {
+
+      if (workerEnabledRef.current) {
         workerRef.current?.postMessage(newEvents);
-      }
-      else {
-        const computedValue = computeData(newEvents, mainThreadArrRef.current)
+      } else {
+        computeData(newEvents, mainThreadArrRef.current);
         bufferedTotalRef.current += newEvents;
       }
     }, 500); // 10 updates/sec
 
     return () => clearInterval(interval);
-
   }, []);
-  /**
-   * init worker
-   * when worker done with processing set of data add it to buffer refrence - 2
-   * worker processing may not run if worker toggle is false
-   * clean up worker
-   */
+
+  /* ---------------- worker setup ---------------- */
+
   useEffect(() => {
     workerRef.current = new Worker(
       new URL("../../workers/eventWorkers.ts", import.meta.url)
     );
 
     workerRef.current.onmessage = (e) => {
-      const { processed } = e.data;
-      bufferedTotalRef.current += processed;
+      bufferedTotalRef.current += e.data.processed;
     };
 
     return () => {
       workerRef.current?.terminate();
+      workerRef.current = null;
     };
   }, []);
 
-  /**
-   * init buffer
-   * if buffer value is > 0 update store these event, and calc total events, reset buffer
-   * clean buffer
-   */
+  /* ---------------- batching flush ---------------- */
+
   useEffect(() => {
-    const flushInterval = setInterval(() => {
+    const tick = () => {
       const value = bufferedTotalRef.current;
       if (value > 0) {
-        flushCount.current += 1;
+        
+        flushCountRef.current += 1;
         incrementTotalEvents(value);
         pushEvents(value);
         bufferedTotalRef.current = 0;
       }
-    }, batchInterval); // batching window
+    };
 
-    return () => clearInterval(flushInterval);
-  }, [batchInterval]);
+    const interval = setInterval(tick, batchIntervalRef.current);
 
+    return () => clearInterval(interval);
+  }, []);
+
+  /* ---------------- render ---------------- */
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-    <EventStatsWidget />
-      <PerformanceStatsWidget flushCount={flushCount.current} />
+      <EventStatsWidget />
+      <PerformanceStatsWidget flushCount={flushCountRef.current} />
       <LiveChartWidget />
       <LogWidget />
     </div>

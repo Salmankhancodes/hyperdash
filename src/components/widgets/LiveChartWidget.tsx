@@ -1,5 +1,6 @@
 "use client"
 
+import { useRenderCount } from "@/hooks/useRenderCount"
 import WidgetContainer from "./WidgetContainer"
 import useEventStore from "@/store/useEventStore"
 import { useEffect, useRef, useState } from "react"
@@ -12,6 +13,7 @@ import {
 } from "recharts"
 
 const LiveChartWidget = () => {
+  useRenderCount('LiveChartWidget');
   const renderBufferRef = useRef<number[]>([]);
   const [chartData, setChartData] = useState<number[]>([]);
   const eventsBuffer = useEventStore((s) => s.eventsBuffer);

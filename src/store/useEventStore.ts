@@ -20,7 +20,7 @@ const useEventStore = create<EventState>((set) => ({
   totalEvents: 0,
   eventsBuffer: [],
   workerEnabled: true,
-  batchInterval: 100,
+  batchInterval: 500,
   setEventThisSec: (val) => set({ eventThisSec: val }),
   toggleWorker: () => set((state) => {
     return {

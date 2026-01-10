@@ -4,11 +4,13 @@ import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import WidgetContainer from "./WidgetContainer";
 import useEventStore from "@/store/useEventStore";
+import { useRenderCount } from "@/hooks/useRenderCount";
 
 const ROW_HEIGHT = 28;
 const VIEWPORT_HEIGHT = 300;
 
 export default function LogsWidget() {
+  useRenderCount('Logwidget')
   const parentRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
 
