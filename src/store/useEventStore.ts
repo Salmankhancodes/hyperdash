@@ -13,6 +13,8 @@ interface EventState {
   setEventThisSec: (val: number) => void;
   incrementTotalEvents: (val: number) => void;
   pushEvents: (count: number) => void;
+  flushCount: number;
+  incrementFlushCount: () => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -21,6 +23,11 @@ const useEventStore = create<EventState>((set) => ({
   eventsBuffer: [],
   workerEnabled: true,
   batchInterval: 500,
+  flushCount: 0,
+  incrementFlushCount: () =>
+    set((state) => ({
+      flushCount: state.flushCount + 1,
+    })),
   setEventThisSec: (val) => set({ eventThisSec: val }),
   toggleWorker: () => set((state) => {
     return {

@@ -4,18 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import WidgetContainer from "./WidgetContainer";
 import { FPSCounter } from "@/components/fpscounter";
 import { useRenderCount } from "@/hooks/useRenderCount";
+import useEventStore from "@/store/useEventStore";
 
-interface Props {
-  flushCount: number;
+interface PerformanceStatsWidgetProps {
+  renderCount: number
 }
 
-const PerformanceStatsWidget = ({ flushCount }: Props) => {
-    const renderCountRef = useRef(0);
-    useRenderCount('performance widget')
-  
-  useEffect(() => {
-    renderCountRef.current += 1;
-  });
+const PerformanceStatsWidget = ({renderCount}: PerformanceStatsWidgetProps) => {
+  const flushCount = useEventStore(s => s.flushCount);
+
+  useRenderCount('performance widget')
 
   return (
     <WidgetContainer title="Performance">
@@ -23,7 +21,7 @@ const PerformanceStatsWidget = ({ flushCount }: Props) => {
         FPS: <FPSCounter />
       </p>
       <p className="text-sm text-muted-foreground">
-        Dashboard renders: {renderCountRef.current}
+        Dashboard renders: {renderCount}
       </p>
       <p className="text-sm text-muted-foreground">
         Batch flushes: {flushCount}

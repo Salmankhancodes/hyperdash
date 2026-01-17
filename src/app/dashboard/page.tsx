@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import EventStatsWidget from "@/components/widgets/EventStatsWidget";
 import LiveChartWidget from "@/components/widgets/LiveChartWidget";
 import LogWidget from "@/components/widgets/LogWidget";
@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const workerRef = useRef<Worker | null>(null);
   const bufferedTotalRef = useRef(0);
   const mainThreadArrRef = useRef<number[]>([]);
-  const flushCountRef = useRef(0);
+  const [renderCount, setRenderCount] = useState(0);
 
   const workerEnabledRef = useRef(
     useEventStore.getState().workerEnabled
@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
   const incrementTotalEvents = useEventStore((s) => s.incrementTotalEvents);
   const pushEvents = useEventStore((s) => s.pushEvents);
+  const incrementFlushCount = useEventStore((s) => s.incrementFlushCount);
+  
 
   /* ---------------- keep refs in sync ---------------- */
 
@@ -43,6 +45,10 @@ export default function DashboardPage() {
 
     return unsub;
   }, []);
+
+  useEffect(() => {
+    // setRenderCount((rc) => rc + 1);
+  });
 
   /* ---------------- event generator ---------------- */
 
@@ -86,8 +92,7 @@ export default function DashboardPage() {
     const tick = () => {
       const value = bufferedTotalRef.current;
       if (value > 0) {
-        
-        flushCountRef.current += 1;
+        incrementFlushCount();
         incrementTotalEvents(value);
         pushEvents(value);
         bufferedTotalRef.current = 0;
@@ -104,7 +109,7 @@ export default function DashboardPage() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
       <EventStatsWidget />
-      <PerformanceStatsWidget flushCount={flushCountRef.current} />
+      <PerformanceStatsWidget renderCount={renderCount} />
       <LiveChartWidget />
       <LogWidget />
     </div>
