@@ -15,15 +15,15 @@ export default function WidgetContainer({
   footer,
 }: WidgetContainerProps) {
   return (
-    <Card className="h-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-medium">
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-sm font-semibold">
           {title}
         </CardTitle>
         {actions && <div>{actions}</div>}
       </CardHeader>
 
-      <CardContent className="space-y-2">
+      <CardContent className="flex-1 overflow-y-auto space-y-2">
         {children}
       </CardContent>
 
