@@ -10,6 +10,8 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
+  CartesianGrid,
+  Tooltip,
 } from "recharts"
 
 const LiveChartWidget = () => {
@@ -35,20 +37,36 @@ setChartData(prev =>
   }, [eventsBuffer]);
 
   return (
-    <WidgetContainer title="Live Events Chart">
-      <div className="h-[240px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData.map((v, i) => ({ x: i, y: v }))}>
-            <XAxis dataKey="x" hide />
-            <YAxis />
-            <Line
-              type="monotone"
-              dataKey="y"
-              stroke="#3b82f6"
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+    <WidgetContainer title="Event Throughput (Rolling Window)">
+      <div className="space-y-3">
+        <div className="h-[240px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData.map((v, i) => ({ x: i, y: v }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="x" 
+                label={{ value: "Time", position: "insideBottomRight", offset: -5 }}
+                tick={false}
+              />
+              <YAxis 
+                label={{ value: "Events", angle: -90, position: "insideLeft" }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: "#1f2937", 
+                  border: "1px solid #374151",
+                  borderRadius: "4px"
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="y"
+                stroke="#3b82f6"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </WidgetContainer>
   )

@@ -7,7 +7,8 @@ interface EventState {
   totalEvents: number;
   eventsBuffer: number[];
   workerEnabled: boolean;
-  batchInterval: number
+  batchInterval: number;
+  eventRatePreset: 'normal' | 'high' | 'extreme'
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
@@ -15,6 +16,7 @@ interface EventState {
   pushEvents: (count: number) => void;
   flushCount: number;
   incrementFlushCount: () => void;
+  setEventRatePreset: (rate: 'normal' | 'high' | 'extreme') => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -24,6 +26,7 @@ const useEventStore = create<EventState>((set) => ({
   workerEnabled: true,
   batchInterval: 500,
   flushCount: 0,
+  eventRatePreset: 'normal',
   incrementFlushCount: () =>
     set((state) => ({
       flushCount: state.flushCount + 1,
@@ -54,6 +57,7 @@ const useEventStore = create<EventState>((set) => ({
             : merged,
       };
     }),
+  setEventRatePreset: (rate) => set({ eventRatePreset: rate }),
 }));
 
 export default useEventStore;

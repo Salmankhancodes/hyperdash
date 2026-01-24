@@ -8,6 +8,14 @@ import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget"
 import { computeData } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
+import ControlPanel  from "@/components/shell/ControlPanel";
+
+const EVENT_RATE_MAP = {
+  normal: 1000,    // 1 update/sec
+  high: 500,   // 2 updates/sec
+  extreme: 100,     // 10 updates/sec
+};
+
 
 export default function DashboardPage() {
   useRenderCount("Dashboard page");
@@ -27,12 +35,17 @@ export default function DashboardPage() {
     useEventStore.getState().batchInterval
   );
 
+  const eventRateRef = useRef(
+    useEventStore.getState().eventRatePreset
+  );
+
   /* ---------------- store actions (stable) ---------------- */
 
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
   const incrementTotalEvents = useEventStore((s) => s.incrementTotalEvents);
   const pushEvents = useEventStore((s) => s.pushEvents);
   const incrementFlushCount = useEventStore((s) => s.incrementFlushCount);
+
   
 
   /* ---------------- keep refs in sync ---------------- */
@@ -41,6 +54,7 @@ export default function DashboardPage() {
     const unsub = useEventStore.subscribe((state) => {
       workerEnabledRef.current = state.workerEnabled;
       batchIntervalRef.current = state.batchInterval;
+      eventRateRef.current = state.eventRatePreset;
     });
 
     return unsub;
@@ -52,22 +66,33 @@ export default function DashboardPage() {
 
   /* ---------------- event generator ---------------- */
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newEvents = Math.floor(Math.random() * 16) + 5; // 5–20
+useEffect(() => {
+  let cancelled = false;
 
-      setEventThisSec(newEvents);
+  const tick = () => {
+    if (cancelled) return;
 
-      if (workerEnabledRef.current) {
-        workerRef.current?.postMessage(newEvents);
-      } else {
-        computeData(newEvents, mainThreadArrRef.current);
-        bufferedTotalRef.current += newEvents;
-      }
-    }, 500); // 10 updates/sec
+    const newEvents = Math.floor(Math.random() * 16) + 5;
+    setEventThisSec(newEvents);
 
-    return () => clearInterval(interval);
-  }, []);
+    if (workerEnabledRef.current) {
+      workerRef.current?.postMessage(newEvents);
+    } else {
+      computeData(newEvents, mainThreadArrRef.current);
+      bufferedTotalRef.current += newEvents;
+    }
+
+    const delay = EVENT_RATE_MAP[eventRateRef.current];
+    setTimeout(tick, delay);
+  };
+
+  tick(); // start loop
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
 
   /* ---------------- worker setup ---------------- */
 
@@ -98,6 +123,7 @@ export default function DashboardPage() {
         bufferedTotalRef.current = 0;
       }
     };
+    console.log("Setting batch interval:", batchIntervalRef.current);
 
     const interval = setInterval(tick, batchIntervalRef.current);
 
@@ -108,9 +134,13 @@ export default function DashboardPage() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      <EventStatsWidget />
+      {/* Row 1: Control → Observability */}
+      <ControlPanel />
       <PerformanceStatsWidget renderCount={renderCount} />
+      
+      {/* Row 2: Detailed Analysis */}
       <LiveChartWidget />
+      <EventStatsWidget />
       <LogWidget />
     </div>
   );
