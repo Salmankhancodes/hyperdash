@@ -56,9 +56,9 @@ function ControlPanel() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="100">100 ms</SelectItem>
-              <SelectItem value="300">300 ms</SelectItem>
               <SelectItem value="500">500 ms</SelectItem>
-              <SelectItem value="5000">5000 ms</SelectItem>
+              <SelectItem value="1000">1000 ms</SelectItem>
+              <SelectItem value="2000">2000 ms</SelectItem>
             </SelectContent>
           </Select>
         </div>

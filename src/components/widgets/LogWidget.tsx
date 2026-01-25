@@ -81,7 +81,8 @@ export default function LogsWidget() {
           >
             {rowVirtualizer.getVirtualItems().map((row) => {
               const event = events[row.index];
-              const eventTimestamp = new Date(event).toLocaleTimeString();
+              const eventTimestamp = new Date(event.timestamp).toLocaleTimeString();
+              const source = event.source === 'worker' ? 'Worker' : 'Main Thread';
 
               return (
                 <div
@@ -93,8 +94,8 @@ export default function LogsWidget() {
                   }}
                 >
                   <div className="truncate">{eventTimestamp}</div>
-                  <div className="truncate">{event}</div>
-                  <div className="truncate text-muted-foreground/70">Worker</div>
+                  <div className="truncate">{event.value}</div>
+                  <div className="truncate text-muted-foreground/70">{source}</div>
                 </div>
               );
             })}

@@ -114,20 +114,40 @@ useEffect(() => {
   /* ---------------- batching flush ---------------- */
 
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    let previousBatchInterval = useEventStore.getState().batchInterval;
+
     const tick = () => {
       const value = bufferedTotalRef.current;
       if (value > 0) {
         incrementFlushCount();
         incrementTotalEvents(value);
-        pushEvents(value);
+        const source = workerEnabledRef.current ? 'worker' : 'main-thread';
+        pushEvents(value, source);
         bufferedTotalRef.current = 0;
       }
     };
-    console.log("Setting batch interval:", batchIntervalRef.current);
 
-    const interval = setInterval(tick, batchIntervalRef.current);
+    const start = (ms: number) => {
+      clearInterval(interval);
+      console.log("Setting batch interval:", ms);
+      interval = setInterval(tick, ms);
+    };
 
-    return () => clearInterval(interval);
+    start(previousBatchInterval);
+
+    const unsub = useEventStore.subscribe((state) => {
+      if (state.batchInterval !== previousBatchInterval) {
+        console.log("Batch interval changed from", previousBatchInterval, "to", state.batchInterval);
+        start(state.batchInterval);
+        previousBatchInterval = state.batchInterval;
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsub();
+    };
   }, []);
 
   /* ---------------- render ---------------- */

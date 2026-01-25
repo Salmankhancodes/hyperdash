@@ -2,10 +2,16 @@ import { create } from "zustand";
 
 const MAX_EVENTS = 2000;
 
+interface EventData {
+  value: number;
+  source: 'worker' | 'main-thread';
+  timestamp: number;
+}
+
 interface EventState {
   eventThisSec: number;
   totalEvents: number;
-  eventsBuffer: number[];
+  eventsBuffer: EventData[];
   workerEnabled: boolean;
   batchInterval: number;
   eventRatePreset: 'normal' | 'high' | 'extreme'
@@ -13,7 +19,7 @@ interface EventState {
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
   incrementTotalEvents: (val: number) => void;
-  pushEvents: (count: number) => void;
+  pushEvents: (count: number, source: 'worker' | 'main-thread') => void;
   flushCount: number;
   incrementFlushCount: () => void;
   setEventRatePreset: (rate: 'normal' | 'high' | 'extreme') => void;
@@ -24,7 +30,7 @@ const useEventStore = create<EventState>((set) => ({
   totalEvents: 0,
   eventsBuffer: [],
   workerEnabled: true,
-  batchInterval: 500,
+  batchInterval: 100,
   flushCount: 0,
   eventRatePreset: 'normal',
   incrementFlushCount: () =>
@@ -44,9 +50,13 @@ const useEventStore = create<EventState>((set) => ({
       totalEvents: state.totalEvents + val,
     })),
 
-  pushEvents: (count) =>
+  pushEvents: (count, source) =>
     set((state) => {
-      const newEvents = Array.from({ length: count }, () => Math.floor(Math.random() * 100));
+      const newEvents = Array.from({ length: count }, () => ({
+        value: Math.floor(Math.random() * 100),
+        source,
+        timestamp: Date.now(),
+      }));
 
       const merged = [...state.eventsBuffer, ...newEvents];
 
