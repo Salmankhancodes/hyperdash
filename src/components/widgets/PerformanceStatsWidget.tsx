@@ -13,6 +13,8 @@ interface PerformanceStatsWidgetProps {
 const PerformanceStatsWidget = ({renderCount}: PerformanceStatsWidgetProps) => {
   const flushCount = useEventStore(s => s.flushCount);
   const workerEnabled = useEventStore(s => s.workerEnabled);
+  const droppedEvents = useEventStore(s => s.droppedEvents);
+  const degradeEnabled = useEventStore(s => s.degradeEnabled);
 
   useRenderCount('performance widget')
 
@@ -32,6 +34,21 @@ const PerformanceStatsWidget = ({renderCount}: PerformanceStatsWidgetProps) => {
             {flushCount > 0 ? flushCount : (
               <span className="text-sm font-normal text-muted-foreground">
                 Batch flushes begin once buffered events accumulate
+              </span>
+            )}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Dropped Events</p>
+          <p className="text-lg font-semibold">
+            {degradeEnabled ? (
+              <span className={droppedEvents > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
+                {droppedEvents.toLocaleString()}
+              </span>
+            ) : (
+              <span className="text-sm font-normal text-muted-foreground">
+                Disabled
               </span>
             )}
           </p>

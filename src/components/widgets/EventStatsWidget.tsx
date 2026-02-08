@@ -4,10 +4,8 @@ import useEventStore from '@/store/useEventStore'
 
 const EventStatsWidget = () => {
   useRenderCount('EventStatsWidget')
-  const {
-    eventThisSec,
-    totalEvents
-  } = useEventStore()
+  const eventThisSec =  useEventStore(s => s.eventThisSec);
+  const totalEvents = useEventStore(s => s.totalEvents);
   return <WidgetContainer title='Event Streams'>
     <div className="space-y-4">
       {/* Current Rate */}

@@ -15,6 +15,9 @@ interface EventState {
   workerEnabled: boolean;
   batchInterval: number;
   eventRatePreset: 'normal' | 'high' | 'extreme'
+  degradeEnabled: boolean;
+  maxEventsPerSecond: number;
+  droppedEvents: number;
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
@@ -23,6 +26,9 @@ interface EventState {
   flushCount: number;
   incrementFlushCount: () => void;
   setEventRatePreset: (rate: 'normal' | 'high' | 'extreme') => void;
+  toggleDegrade: () => void;
+  setMaxEventsPerSecond: (val: number) => void;
+  incrementDroppedEvents: (val: number) => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -33,6 +39,9 @@ const useEventStore = create<EventState>((set) => ({
   batchInterval: 100,
   flushCount: 0,
   eventRatePreset: 'normal',
+  degradeEnabled: false,
+  maxEventsPerSecond: 100,
+  droppedEvents: 0,
   incrementFlushCount: () =>
     set((state) => ({
       flushCount: state.flushCount + 1,
@@ -68,6 +77,14 @@ const useEventStore = create<EventState>((set) => ({
       };
     }),
   setEventRatePreset: (rate) => set({ eventRatePreset: rate }),
+  toggleDegrade: () => set((state) => ({
+    degradeEnabled: !state.degradeEnabled,
+  })),
+  setMaxEventsPerSecond: (val) => set({ maxEventsPerSecond: val }),
+  incrementDroppedEvents: (val) =>
+    set((state) => ({
+      droppedEvents: state.droppedEvents + val,
+    })),
 }));
 
 export default useEventStore;

@@ -10,12 +10,13 @@ import useEventStore from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import ControlPanel  from "@/components/shell/ControlPanel";
 
-const EVENT_RATE_MAP = {
-  normal: 1000,    // 1 update/sec
-  high: 500,   // 2 updates/sec
-  extreme: 100,     // 10 updates/sec
+const EVENT_MULTIPLIER_MAP = {
+  normal: 1,
+  high: 5,
+  extreme: 20,
 };
 
+const FIXED_INTERVAL = 500; // Fixed 500ms interval
 
 export default function DashboardPage() {
   useRenderCount("Dashboard page");
@@ -39,12 +40,29 @@ export default function DashboardPage() {
     useEventStore.getState().eventRatePreset
   );
 
+  const degradeEnabledRef = useRef(
+    useEventStore.getState().degradeEnabled
+  );
+
+  const maxEventsPerSecondRef = useRef(
+    useEventStore.getState().maxEventsPerSecond
+  );
+
+  // Track events per second for degradation
+  const eventsThisSecondRef = useRef(0);
+  const currentSecondRef = useRef(Math.floor(Date.now() / 1000));
+
+  // Accumulator for events/sec metric (separate from degradation tracking)
+  const eventsPerSecAccumulatorRef = useRef(0);
+  const lastMetricSecondRef = useRef(Math.floor(Date.now() / 1000));
+
   /* ---------------- store actions (stable) ---------------- */
 
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
   const incrementTotalEvents = useEventStore((s) => s.incrementTotalEvents);
   const pushEvents = useEventStore((s) => s.pushEvents);
   const incrementFlushCount = useEventStore((s) => s.incrementFlushCount);
+  const incrementDroppedEvents = useEventStore((s) => s.incrementDroppedEvents);
 
   
 
@@ -55,6 +73,8 @@ export default function DashboardPage() {
       workerEnabledRef.current = state.workerEnabled;
       batchIntervalRef.current = state.batchInterval;
       eventRateRef.current = state.eventRatePreset;
+      degradeEnabledRef.current = state.degradeEnabled;
+      maxEventsPerSecondRef.current = state.maxEventsPerSecond;
     });
 
     return unsub;
@@ -72,18 +92,65 @@ useEffect(() => {
   const tick = () => {
     if (cancelled) return;
 
-    const newEvents = Math.floor(Math.random() * 16) + 5;
-    setEventThisSec(newEvents);
-
-    if (workerEnabledRef.current) {
-      workerRef.current?.postMessage(newEvents);
-    } else {
-      computeData(newEvents, mainThreadArrRef.current);
-      bufferedTotalRef.current += newEvents;
+    const baseEvents = Math.floor(Math.random() * 16) + 5;
+    const multiplier = EVENT_MULTIPLIER_MAP[eventRateRef.current];
+    const incomingEvents = baseEvents * multiplier;
+    
+    // Check if we're in a new second
+    const now = Math.floor(Date.now() / 1000);
+    if (now !== currentSecondRef.current) {
+      currentSecondRef.current = now;
+      eventsThisSecondRef.current = 0;
     }
 
-    const delay = EVENT_RATE_MAP[eventRateRef.current];
-    setTimeout(tick, delay);
+    // Apply degradation logic if enabled
+    let processedEvents = incomingEvents;
+    let droppedCount = 0;
+
+    if (degradeEnabledRef.current) {
+      const remainingCapacity = maxEventsPerSecondRef.current - eventsThisSecondRef.current;
+      
+      if (remainingCapacity <= 0) {
+        // Drop all events - capacity exhausted
+        droppedCount = incomingEvents;
+        processedEvents = 0;
+      } else if (incomingEvents > remainingCapacity) {
+        // Partial drop - only process what fits
+        processedEvents = remainingCapacity;
+        droppedCount = incomingEvents - remainingCapacity;
+      }
+      
+      eventsThisSecondRef.current += processedEvents;
+    }
+
+    // Update dropped events counter if any were dropped
+    if (droppedCount > 0) {
+      incrementDroppedEvents(droppedCount);
+    }
+    
+    // Accumulate processed events for per-second metric
+    eventsPerSecAccumulatorRef.current += processedEvents;
+
+    // Check if we've entered a new second for metrics
+    const metricSecond = Math.floor(Date.now() / 1000);
+    if (metricSecond !== lastMetricSecondRef.current) {
+      // Publish accumulated value to store
+      setEventThisSec(eventsPerSecAccumulatorRef.current);
+      // Reset accumulator for new second
+      eventsPerSecAccumulatorRef.current = 0;
+      lastMetricSecondRef.current = metricSecond;
+    }
+
+    if (processedEvents > 0) {
+      if (workerEnabledRef.current) {
+        workerRef.current?.postMessage(processedEvents);
+      } else {
+        computeData(processedEvents, mainThreadArrRef.current);
+        bufferedTotalRef.current += processedEvents;
+      }
+    }
+
+    setTimeout(tick, FIXED_INTERVAL);
   };
 
   tick(); // start loop

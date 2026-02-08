@@ -16,9 +16,13 @@ function ControlPanel() {
   const workerEnabled = useEventStore(s => s.workerEnabled);
   const batchInterval = useEventStore(s => s.batchInterval);
   const eventRatePreset = useEventStore(s => s.eventRatePreset);
+  const degradeEnabled = useEventStore(s => s.degradeEnabled);
+  const maxEventsPerSecond = useEventStore(s => s.maxEventsPerSecond);
   const setWorkerEnabled = useEventStore(s => s.toggleWorker);
   const setBatchInterval = useEventStore(s => s.setBatchInterval);
   const setEventRatePreset = useEventStore(s => s.setEventRatePreset);
+  const toggleDegrade = useEventStore(s => s.toggleDegrade);
+  const setMaxEventsPerSecond = useEventStore(s => s.setMaxEventsPerSecond);
   console.log("ControlPanel render");
   console.log("workerEnabled:", workerEnabled);
   console.log("batchInterval:", batchInterval);
@@ -65,8 +69,8 @@ function ControlPanel() {
 
         {/* Event Rate */}
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold">Event Ingestion Rate</span>
-          <span className="text-xs text-muted-foreground mb-1">Controls how frequently new events are generated</span>
+          <span className="text-sm font-semibold">Event Volume Multiplier</span>
+          <span className="text-xs text-muted-foreground mb-1">Controls how many events are generated per tick (500ms)</span>
           <Select
             value={eventRatePreset}
             onValueChange={value =>
@@ -80,6 +84,43 @@ function ControlPanel() {
               <SelectItem value="normal">Normal</SelectItem>
               <SelectItem value="high">High</SelectItem>
               <SelectItem value="extreme">Extreme</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Graceful Degradation */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold">Graceful Degradation</span>
+              <span className="text-xs text-muted-foreground">Drop excess events to protect UI stability</span>
+            </div>
+            <Switch
+              checked={degradeEnabled}
+              onCheckedChange={toggleDegrade}
+            />
+            <span className="text-xs font-medium text-muted-foreground min-w-16">
+              {degradeEnabled ? "Enabled" : "Disabled"}
+            </span>
+          </div>
+        </div>
+
+        {/* Max Events Per Second */}
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-semibold">Max Events/Second</span>
+          <span className="text-xs text-muted-foreground mb-1">Drop events exceeding this rate when degradation is on</span>
+          <Select
+            value={String(maxEventsPerSecond)}
+            onValueChange={value => setMaxEventsPerSecond(Number(value))}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="50">50/sec</SelectItem>
+              <SelectItem value="100">100/sec</SelectItem>
+              <SelectItem value="200">200/sec</SelectItem>
+              <SelectItem value="500">500/sec</SelectItem>
             </SelectContent>
           </Select>
         </div>
