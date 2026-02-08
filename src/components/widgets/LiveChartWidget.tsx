@@ -38,31 +38,22 @@ const LiveChartWidget = () => {
     const interval = setInterval(() => {
       if (isHoveringRef.current) return;
 
-      setChartData(prev => {
+      setChartData(() => {
         const buffer = renderBufferRef.current;
-        if (buffer.length === 0) return prev;
+        if (buffer.length === 0) return [];
 
-        // Aggregate events into 1-second buckets
+        // Build buckets purely from the current eventsBuffer (no carry-forward)
         const bucketMap = new Map<number, number>();
-
-        // Carry forward existing buckets
-        for (const pt of prev) {
-          bucketMap.set(pt.timestamp, pt.count);
-        }
-
-        // Add new events from buffer into buckets
         for (const e of buffer) {
           const bucketKey = Math.floor(e.timestamp / BUCKET_MS) * BUCKET_MS;
           bucketMap.set(bucketKey, (bucketMap.get(bucketKey) ?? 0) + 1);
         }
 
         // Sort by timestamp, keep last N buckets
-        const sorted = Array.from(bucketMap.entries())
+        return Array.from(bucketMap.entries())
           .sort((a, b) => a[0] - b[0])
           .slice(-MAX_BUCKETS)
           .map(([timestamp, count]) => ({ timestamp, count }));
-
-        return sorted;
       });
     }, 500);
 
