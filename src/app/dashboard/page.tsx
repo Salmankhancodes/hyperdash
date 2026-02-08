@@ -5,7 +5,8 @@ import EventStatsWidget from "@/components/widgets/EventStatsWidget";
 import LiveChartWidget from "@/components/widgets/LiveChartWidget";
 import LogWidget from "@/components/widgets/LogWidget";
 import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget";
-import { computeData } from "@/lib/utils";
+import ComparisonWidget from "@/components/widgets/ComparisonWidget";
+import { computeDataTimed } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import ControlPanel  from "@/components/shell/ControlPanel";
@@ -57,6 +58,9 @@ export default function DashboardPage() {
   const isPausedRef = useRef(useEventStore.getState().isPaused);
   const droppedWhilePausedRef = useRef(0);
 
+  // Processing time tracking (rolling average)
+  const processingTimesRef = useRef<number[]>([]);
+
   /* ---------------- store actions (stable) ---------------- */
 
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
@@ -64,6 +68,7 @@ export default function DashboardPage() {
   const pushEvents = useEventStore((s) => s.pushEvents);
   const incrementFlushCount = useEventStore((s) => s.incrementFlushCount);
   const incrementDroppedEvents = useEventStore((s) => s.incrementDroppedEvents);
+  const setAvgProcessingMs = useEventStore((s) => s.setAvgProcessingMs);
 
   
 
@@ -140,6 +145,14 @@ useEffect(() => {
     if (now !== lastMetricSecondRef.current) {
       if (!isPausedRef.current) {
         setEventThisSec(eventsPerSecAccumulatorRef.current);
+
+        // Publish rolling average processing time
+        const times = processingTimesRef.current;
+        if (times.length > 0) {
+          const avg = times.reduce((a, b) => a + b, 0) / times.length;
+          setAvgProcessingMs(Math.round(avg * 100) / 100);
+          processingTimesRef.current = [];
+        }
       }
       eventsPerSecAccumulatorRef.current = 0;
       lastMetricSecondRef.current = now;
@@ -150,7 +163,8 @@ useEffect(() => {
       if (workerEnabledRef.current && workerRef.current) {
         workerRef.current.postMessage(processedEvents);
       } else {
-        computeData(processedEvents, mainThreadArrRef.current);
+        const { durationMs } = computeDataTimed(processedEvents, mainThreadArrRef.current);
+        processingTimesRef.current.push(durationMs);
         bufferedTotalRef.current += processedEvents;
       }
     }
@@ -175,6 +189,9 @@ useEffect(() => {
 
     workerRef.current.onmessage = (e) => {
       bufferedTotalRef.current += e.data.processed;
+      if (typeof e.data.durationMs === 'number') {
+        processingTimesRef.current.push(e.data.durationMs);
+      }
     };
 
     workerRef.current.onerror = (e) => {
@@ -234,25 +251,32 @@ useEffect(() => {
     <DrillDownModal />
     <div className="w-full h-full px-4 md:px-6 lg:px-8 py-4 md:py-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto">
-        {/* Global Control Panel - Full Width */}
+        {/* Control Panel - Full Width */}
         <div className="col-span-1 md:col-span-2 xl:col-span-3">
           <ControlPanel />
         </div>
         
-        {/* Row 1: Observability */}
+        {/* Row 1: Compact stat panels side-by-side */}
         <div className="min-h-0">
           <PerformanceStatsWidget />
-        </div>
-        
-        {/* Row 2: Detailed Analysis */}
-        <div className="min-h-0">
-          <LiveChartWidget />
         </div>
         <div className="min-h-0">
           <EventStatsWidget />
         </div>
-        <div className="min-h-0">
+
+        {/* Row 1 col 3 on xl, or row 2 on md: Log widget */}
+        <div className="min-h-0 md:col-span-2 xl:col-span-1 xl:row-span-1">
           <LogWidget />
+        </div>
+
+        {/* Row 2: Chart gets more room */}
+        <div className="min-h-0 md:col-span-2 xl:col-span-2">
+          <LiveChartWidget />
+        </div>
+
+        {/* Comparison fills remaining col on xl, or full-width on md */}
+        <div className="min-h-0 md:col-span-2 xl:col-span-1">
+          <ComparisonWidget />
         </div>
       </div>
     </div>

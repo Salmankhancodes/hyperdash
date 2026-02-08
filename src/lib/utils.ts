@@ -20,3 +20,11 @@ export function computeData(newEvents: number, arr: number[]){
 
     return arr;
 }
+
+/** Timed wrapper — returns the mutated array plus wall-clock duration in ms. */
+export function computeDataTimed(newEvents: number, arr: number[]){
+    const start = performance.now();
+    const result = computeData(newEvents, arr);
+    const durationMs = performance.now() - start;
+    return { result, durationMs };
+}

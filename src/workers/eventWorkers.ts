@@ -1,13 +1,14 @@
-import { computeData } from "@/lib/utils";
+import { computeDataTimed } from "@/lib/utils";
 
 let arr: number[] = [];
 
 self.onmessage = (e) => {
   const newEvents: number = e.data;
-  // do heavy work
-  const data = computeData(newEvents, arr);
+  // do heavy work + measure duration
+  const { result, durationMs } = computeDataTimed(newEvents, arr);
   self.postMessage({
     processed: newEvents,
-    size: data.length,
+    size: result.length,
+    durationMs,
   });
 };

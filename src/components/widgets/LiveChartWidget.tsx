@@ -111,7 +111,7 @@ const LiveChartWidget = () => {
                   borderRadius: "4px"
                 }}
                 labelFormatter={() => ""}
-                formatter={(val: number | undefined) => [`${val ?? 0} events`, "Throughput"]}
+                formatter={(val: number | undefined) => [`${val ?? 0} events`, "Processed"]}
               />
               <Line
                 type="monotone"

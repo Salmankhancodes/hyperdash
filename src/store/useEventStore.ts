@@ -28,6 +28,18 @@ interface DrillWindow {
   source: string; // what triggered it (e.g. 'chart')
 }
 
+/** Captured performance baseline for Worker-ON vs Worker-OFF comparison. */
+export interface Baseline {
+  fps: number;
+  throughput: number;          // eventThisSec at capture time
+  droppedEvents: number;
+  flushCount: number;
+  avgProcessingMs: number;
+  workerEnabled: boolean;
+  eventRatePreset: 'normal' | 'high' | 'extreme';
+  capturedAt: number;
+}
+
 interface EventState {
   eventThisSec: number;
   totalEvents: number;
@@ -41,6 +53,12 @@ interface EventState {
   isPaused: boolean;
   snapshot: Snapshot | null;
   drillWindow: DrillWindow | null;
+
+  /* Performance comparison */
+  fps: number;
+  avgProcessingMs: number;
+  baseline: Baseline | null;
+
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
@@ -55,6 +73,12 @@ interface EventState {
   togglePause: () => void;
   startDrill: (window: DrillWindow) => void;
   endDrill: () => void;
+
+  /* Performance comparison actions */
+  setFps: (val: number) => void;
+  setAvgProcessingMs: (val: number) => void;
+  captureBaseline: () => void;
+  clearBaseline: () => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -71,6 +95,11 @@ const useEventStore = create<EventState>((set) => ({
   isPaused: false,
   snapshot: null,
   drillWindow: null,
+
+  /* Performance comparison defaults */
+  fps: 0,
+  avgProcessingMs: 0,
+  baseline: null,
   incrementFlushCount: () =>
     set((state) => ({
       flushCount: state.flushCount + 1,
@@ -163,6 +192,24 @@ const useEventStore = create<EventState>((set) => ({
       isPaused: false,
       snapshot: null,
     }),
+
+  /* Performance comparison actions */
+  setFps: (val) => set({ fps: val }),
+  setAvgProcessingMs: (val) => set({ avgProcessingMs: val }),
+  captureBaseline: () =>
+    set((state) => ({
+      baseline: {
+        fps: state.fps,
+        throughput: state.eventThisSec,
+        droppedEvents: state.droppedEvents,
+        flushCount: state.flushCount,
+        avgProcessingMs: state.avgProcessingMs,
+        workerEnabled: state.workerEnabled,
+        eventRatePreset: state.eventRatePreset,
+        capturedAt: Date.now(),
+      },
+    })),
+  clearBaseline: () => set({ baseline: null }),
 }));
 
 export default useEventStore;
