@@ -10,6 +10,7 @@ import useEventStore from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import ControlPanel  from "@/components/shell/ControlPanel";
 import InspectModal from "@/components/shell/InspectModal";
+import DrillDownModal from "@/components/shell/DrillDownModal";
 
 const EVENT_MULTIPLIER_MAP = {
   normal: 1,
@@ -230,6 +231,7 @@ useEffect(() => {
   return (
     <>
     <InspectModal />
+    <DrillDownModal />
     <div className="w-full h-full px-4 md:px-6 lg:px-8 py-4 md:py-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto">
         {/* Global Control Panel - Full Width */}

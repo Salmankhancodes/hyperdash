@@ -22,6 +22,12 @@ interface Snapshot {
   pausedAt: number;
 }
 
+interface DrillWindow {
+  start: number;  // timestamp ms
+  end: number;    // timestamp ms
+  source: string; // what triggered it (e.g. 'chart')
+}
+
 interface EventState {
   eventThisSec: number;
   totalEvents: number;
@@ -34,6 +40,7 @@ interface EventState {
   droppedEvents: number;
   isPaused: boolean;
   snapshot: Snapshot | null;
+  drillWindow: DrillWindow | null;
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
@@ -46,6 +53,8 @@ interface EventState {
   setMaxEventsPerSecond: (val: number) => void;
   incrementDroppedEvents: (val: number) => void;
   togglePause: () => void;
+  startDrill: (window: DrillWindow) => void;
+  endDrill: () => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -61,6 +70,7 @@ const useEventStore = create<EventState>((set) => ({
   droppedEvents: 0,
   isPaused: false,
   snapshot: null,
+  drillWindow: null,
   incrementFlushCount: () =>
     set((state) => ({
       flushCount: state.flushCount + 1,
@@ -127,6 +137,31 @@ const useEventStore = create<EventState>((set) => ({
           pausedAt: Date.now(),
         },
       };
+    }),
+  startDrill: (window) =>
+    set((state) => ({
+      drillWindow: window,
+      // Reuse pause: freeze UI commits while drilling
+      isPaused: true,
+      snapshot: {
+        totalEvents: state.totalEvents,
+        eventThisSec: state.eventThisSec,
+        eventsBuffer: state.eventsBuffer,
+        flushCount: state.flushCount,
+        droppedEvents: state.droppedEvents,
+        workerEnabled: state.workerEnabled,
+        batchInterval: state.batchInterval,
+        eventRatePreset: state.eventRatePreset,
+        degradeEnabled: state.degradeEnabled,
+        maxEventsPerSecond: state.maxEventsPerSecond,
+        pausedAt: Date.now(),
+      },
+    })),
+  endDrill: () =>
+    set({
+      drillWindow: null,
+      isPaused: false,
+      snapshot: null,
     }),
 }));
 
