@@ -23,13 +23,34 @@ function ControlPanel() {
   const setEventRatePreset = useEventStore(s => s.setEventRatePreset);
   const toggleDegrade = useEventStore(s => s.toggleDegrade);
   const setMaxEventsPerSecond = useEventStore(s => s.setMaxEventsPerSecond);
-  console.log("ControlPanel render");
-  console.log("workerEnabled:", workerEnabled);
-  console.log("batchInterval:", batchInterval);
-  console.log("eventRatePreset:", eventRatePreset);
+  const isPaused = useEventStore(s => s.isPaused);
+  const togglePause = useEventStore(s => s.togglePause);
+
   return (
     <Card className="mb-4">
       <CardContent className="flex flex-wrap gap-12 py-4">
+        {/* Pause / Resume Toggle */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold">Stream Control</span>
+              <span className="text-xs text-muted-foreground">Freeze UI updates while data continues flowing</span>
+            </div>
+            <Switch
+              checked={isPaused}
+              onCheckedChange={togglePause}
+            />
+            <span className={`text-xs font-medium min-w-16 ${isPaused ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+              {isPaused ? "⏸ Paused" : "▶ Live"}
+            </span>
+          </div>
+          {isPaused && (
+            <span className="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded font-medium w-fit">
+              Paused — Inspecting snapshot
+            </span>
+          )}
+        </div>
+
         {/* Worker Toggle */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">

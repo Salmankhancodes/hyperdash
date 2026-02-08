@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import EventStatsWidget from "@/components/widgets/EventStatsWidget";
 import LiveChartWidget from "@/components/widgets/LiveChartWidget";
 import LogWidget from "@/components/widgets/LogWidget";
@@ -9,6 +9,7 @@ import { computeData } from "@/lib/utils";
 import useEventStore from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import ControlPanel  from "@/components/shell/ControlPanel";
+import InspectModal from "@/components/shell/InspectModal";
 
 const EVENT_MULTIPLIER_MAP = {
   normal: 1,
@@ -26,14 +27,9 @@ export default function DashboardPage() {
   const workerRef = useRef<Worker | null>(null);
   const bufferedTotalRef = useRef(0);
   const mainThreadArrRef = useRef<number[]>([]);
-  const [renderCount, setRenderCount] = useState(0);
 
   const workerEnabledRef = useRef(
     useEventStore.getState().workerEnabled
-  );
-
-  const batchIntervalRef = useRef(
-    useEventStore.getState().batchInterval
   );
 
   const eventRateRef = useRef(
@@ -56,6 +52,10 @@ export default function DashboardPage() {
   const eventsPerSecAccumulatorRef = useRef(0);
   const lastMetricSecondRef = useRef(Math.floor(Date.now() / 1000));
 
+  // Pause state ref (no re-renders)
+  const isPausedRef = useRef(useEventStore.getState().isPaused);
+  const droppedWhilePausedRef = useRef(0);
+
   /* ---------------- store actions (stable) ---------------- */
 
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
@@ -71,18 +71,14 @@ export default function DashboardPage() {
   useEffect(() => {
     const unsub = useEventStore.subscribe((state) => {
       workerEnabledRef.current = state.workerEnabled;
-      batchIntervalRef.current = state.batchInterval;
       eventRateRef.current = state.eventRatePreset;
       degradeEnabledRef.current = state.degradeEnabled;
       maxEventsPerSecondRef.current = state.maxEventsPerSecond;
+      isPausedRef.current = state.isPaused;
     });
 
     return unsub;
   }, []);
-
-  useEffect(() => {
-    // setRenderCount((rc) => rc + 1);
-  });
 
   /* ---------------- event generator ---------------- */
 
@@ -125,25 +121,33 @@ useEffect(() => {
 
     // Update dropped events counter if any were dropped
     if (droppedCount > 0) {
-      incrementDroppedEvents(droppedCount);
+      if (isPausedRef.current) {
+        droppedWhilePausedRef.current += droppedCount;
+      } else {
+        // Flush any drops accumulated during pause + current
+        const totalDrops = droppedWhilePausedRef.current + droppedCount;
+        droppedWhilePausedRef.current = 0;
+        incrementDroppedEvents(totalDrops);
+      }
+    } else if (!isPausedRef.current && droppedWhilePausedRef.current > 0) {
+      // Flush leftover drops from pause period
+      incrementDroppedEvents(droppedWhilePausedRef.current);
+      droppedWhilePausedRef.current = 0;
     }
-    
-    // Accumulate processed events for per-second metric
+
+    // Publish per-second metric on second boundary, then accumulate current tick
+    if (now !== lastMetricSecondRef.current) {
+      if (!isPausedRef.current) {
+        setEventThisSec(eventsPerSecAccumulatorRef.current);
+      }
+      eventsPerSecAccumulatorRef.current = 0;
+      lastMetricSecondRef.current = now;
+    }
     eventsPerSecAccumulatorRef.current += processedEvents;
 
-    // Check if we've entered a new second for metrics
-    const metricSecond = Math.floor(Date.now() / 1000);
-    if (metricSecond !== lastMetricSecondRef.current) {
-      // Publish accumulated value to store
-      setEventThisSec(eventsPerSecAccumulatorRef.current);
-      // Reset accumulator for new second
-      eventsPerSecAccumulatorRef.current = 0;
-      lastMetricSecondRef.current = metricSecond;
-    }
-
     if (processedEvents > 0) {
-      if (workerEnabledRef.current) {
-        workerRef.current?.postMessage(processedEvents);
+      if (workerEnabledRef.current && workerRef.current) {
+        workerRef.current.postMessage(processedEvents);
       } else {
         computeData(processedEvents, mainThreadArrRef.current);
         bufferedTotalRef.current += processedEvents;
@@ -172,6 +176,10 @@ useEffect(() => {
       bufferedTotalRef.current += e.data.processed;
     };
 
+    workerRef.current.onerror = (e) => {
+      console.error("Worker error:", e.message);
+    };
+
     return () => {
       workerRef.current?.terminate();
       workerRef.current = null;
@@ -185,6 +193,8 @@ useEffect(() => {
     let previousBatchInterval = useEventStore.getState().batchInterval;
 
     const tick = () => {
+      if (isPausedRef.current) return;
+
       const value = bufferedTotalRef.current;
       if (value > 0) {
         incrementFlushCount();
@@ -197,7 +207,6 @@ useEffect(() => {
 
     const start = (ms: number) => {
       clearInterval(interval);
-      console.log("Setting batch interval:", ms);
       interval = setInterval(tick, ms);
     };
 
@@ -205,7 +214,6 @@ useEffect(() => {
 
     const unsub = useEventStore.subscribe((state) => {
       if (state.batchInterval !== previousBatchInterval) {
-        console.log("Batch interval changed from", previousBatchInterval, "to", state.batchInterval);
         start(state.batchInterval);
         previousBatchInterval = state.batchInterval;
       }
@@ -220,6 +228,8 @@ useEffect(() => {
   /* ---------------- render ---------------- */
 
   return (
+    <>
+    <InspectModal />
     <div className="w-full h-full px-4 md:px-6 lg:px-8 py-4 md:py-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto">
         {/* Global Control Panel - Full Width */}
@@ -229,7 +239,7 @@ useEffect(() => {
         
         {/* Row 1: Observability */}
         <div className="min-h-0">
-          <PerformanceStatsWidget renderCount={renderCount} />
+          <PerformanceStatsWidget />
         </div>
         
         {/* Row 2: Detailed Analysis */}
@@ -244,5 +254,6 @@ useEffect(() => {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -8,6 +8,20 @@ interface EventData {
   timestamp: number;
 }
 
+interface Snapshot {
+  totalEvents: number;
+  eventThisSec: number;
+  eventsBuffer: EventData[];
+  flushCount: number;
+  droppedEvents: number;
+  workerEnabled: boolean;
+  batchInterval: number;
+  eventRatePreset: 'normal' | 'high' | 'extreme';
+  degradeEnabled: boolean;
+  maxEventsPerSecond: number;
+  pausedAt: number;
+}
+
 interface EventState {
   eventThisSec: number;
   totalEvents: number;
@@ -18,6 +32,8 @@ interface EventState {
   degradeEnabled: boolean;
   maxEventsPerSecond: number;
   droppedEvents: number;
+  isPaused: boolean;
+  snapshot: Snapshot | null;
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
@@ -29,6 +45,7 @@ interface EventState {
   toggleDegrade: () => void;
   setMaxEventsPerSecond: (val: number) => void;
   incrementDroppedEvents: (val: number) => void;
+  togglePause: () => void;
 }
 
 const useEventStore = create<EventState>((set) => ({
@@ -42,6 +59,8 @@ const useEventStore = create<EventState>((set) => ({
   degradeEnabled: false,
   maxEventsPerSecond: 100,
   droppedEvents: 0,
+  isPaused: false,
+  snapshot: null,
   incrementFlushCount: () =>
     set((state) => ({
       flushCount: state.flushCount + 1,
@@ -85,6 +104,30 @@ const useEventStore = create<EventState>((set) => ({
     set((state) => ({
       droppedEvents: state.droppedEvents + val,
     })),
+  togglePause: () =>
+    set((state) => {
+      if (state.isPaused) {
+        // Resume: discard snapshot
+        return { isPaused: false, snapshot: null };
+      }
+      // Pause: capture snapshot
+      return {
+        isPaused: true,
+        snapshot: {
+          totalEvents: state.totalEvents,
+          eventThisSec: state.eventThisSec,
+          eventsBuffer: state.eventsBuffer,
+          flushCount: state.flushCount,
+          droppedEvents: state.droppedEvents,
+          workerEnabled: state.workerEnabled,
+          batchInterval: state.batchInterval,
+          eventRatePreset: state.eventRatePreset,
+          degradeEnabled: state.degradeEnabled,
+          maxEventsPerSecond: state.maxEventsPerSecond,
+          pausedAt: Date.now(),
+        },
+      };
+    }),
 }));
 
 export default useEventStore;

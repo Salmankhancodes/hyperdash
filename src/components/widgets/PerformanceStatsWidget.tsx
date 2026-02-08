@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import WidgetContainer from "./WidgetContainer";
 import { FPSCounter } from "@/components/fpscounter";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import useEventStore from "@/store/useEventStore";
 
-interface PerformanceStatsWidgetProps {
-  renderCount: number
-}
-
-const PerformanceStatsWidget = ({renderCount}: PerformanceStatsWidgetProps) => {
+const PerformanceStatsWidget = () => {
   const flushCount = useEventStore(s => s.flushCount);
   const workerEnabled = useEventStore(s => s.workerEnabled);
   const droppedEvents = useEventStore(s => s.droppedEvents);
@@ -42,14 +37,11 @@ const PerformanceStatsWidget = ({renderCount}: PerformanceStatsWidgetProps) => {
         <div>
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Dropped Events</p>
           <p className="text-lg font-semibold">
-            {degradeEnabled ? (
-              <span className={droppedEvents > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
-                {droppedEvents.toLocaleString()}
-              </span>
-            ) : (
-              <span className="text-sm font-normal text-muted-foreground">
-                Disabled
-              </span>
+            <span className={droppedEvents > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
+              {droppedEvents.toLocaleString()}
+            </span>
+            {!degradeEnabled && (
+              <span className="text-xs font-normal text-muted-foreground ml-2">(off)</span>
             )}
           </p>
         </div>
