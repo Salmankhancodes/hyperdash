@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-const WORK_FACTOR = 500; // tune this
+const WORK_FACTOR = 200; // tune this — balanced against EVENT_MULTIPLIER to keep total computation constant
 export function computeData(newEvents: number, arr: number[]){
     // --- HEAVY WORK START ---
     for (let i = 0; i < newEvents * WORK_FACTOR; i++) {

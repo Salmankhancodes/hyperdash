@@ -14,9 +14,9 @@ import InspectModal from "@/components/shell/InspectModal";
 import DrillDownModal from "@/components/shell/DrillDownModal";
 
 const EVENT_MULTIPLIER_MAP = {
-  normal: 1,
-  high: 5,
-  extreme: 20,
+  normal: 2,
+  high: 10,
+  extreme: 50,
 };
 
 const FIXED_INTERVAL = 500; // Fixed 500ms interval
@@ -64,9 +64,7 @@ export default function DashboardPage() {
   /* ---------------- store actions (stable) ---------------- */
 
   const setEventThisSec = useEventStore((s) => s.setEventThisSec);
-  const incrementTotalEvents = useEventStore((s) => s.incrementTotalEvents);
-  const pushEvents = useEventStore((s) => s.pushEvents);
-  const incrementFlushCount = useEventStore((s) => s.incrementFlushCount);
+  const flushBatch = useEventStore((s) => s.flushBatch);
   const incrementDroppedEvents = useEventStore((s) => s.incrementDroppedEvents);
   const setAvgProcessingMs = useEventStore((s) => s.setAvgProcessingMs);
 
@@ -215,10 +213,8 @@ useEffect(() => {
 
       const value = bufferedTotalRef.current;
       if (value > 0) {
-        incrementFlushCount();
-        incrementTotalEvents(value);
         const source = workerEnabledRef.current ? 'worker' : 'main-thread';
-        pushEvents(value, source);
+        flushBatch(value, source);
         bufferedTotalRef.current = 0;
       }
     };

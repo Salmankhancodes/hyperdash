@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 const MAX_EVENTS = 2000;
+const MAX_SAMPLE_PER_FLUSH = 50; // Cap EventData objects created per flush to avoid main-thread churn
 
 interface EventData {
   value: number;
@@ -62,10 +63,8 @@ interface EventState {
   toggleWorker: () => void
   setBatchInterval: (ms: number) => void
   setEventThisSec: (val: number) => void;
-  incrementTotalEvents: (val: number) => void;
-  pushEvents: (count: number, source: 'worker' | 'main-thread') => void;
+  flushBatch: (count: number, source: 'worker' | 'main-thread') => void;
   flushCount: number;
-  incrementFlushCount: () => void;
   setEventRatePreset: (rate: 'normal' | 'high' | 'extreme') => void;
   toggleDegrade: () => void;
   setMaxEventsPerSecond: (val: number) => void;
@@ -112,22 +111,24 @@ const useEventStore = create<EventState>((set) => ({
     }
   }),
   setBatchInterval: (ms) => set({ batchInterval: ms }),
-  incrementTotalEvents: (val) =>
-    set((state) => ({
-      totalEvents: state.totalEvents + val,
-    })),
 
-  pushEvents: (count, source) =>
+  // Single atomic flush: increment counters + sample events in ONE set() call
+  flushBatch: (count, source) =>
     set((state) => {
-      const newEvents = Array.from({ length: count }, () => ({
+      // Sample: create at most MAX_SAMPLE_PER_FLUSH EventData objects
+      const sampleSize = Math.min(count, MAX_SAMPLE_PER_FLUSH);
+      const now = Date.now();
+      const newEvents = Array.from({ length: sampleSize }, () => ({
         value: Math.floor(Math.random() * 100),
         source,
-        timestamp: Date.now(),
+        timestamp: now,
       }));
 
       const merged = [...state.eventsBuffer, ...newEvents];
 
       return {
+        flushCount: state.flushCount + 1,
+        totalEvents: state.totalEvents + count,
         eventsBuffer:
           merged.length > MAX_EVENTS
             ? merged.slice(merged.length - MAX_EVENTS)
