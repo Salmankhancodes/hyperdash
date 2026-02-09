@@ -7,11 +7,11 @@ const Header = () => {
   const workerEnabled = useEventStore(s => s.workerEnabled);
 
   return (
-    <header className="w-full h-12 flex items-center justify-between px-5 bg-zinc-900 border-b border-zinc-800 shrink-0">
+    <header className="w-full h-12 flex items-center justify-between px-5 bg-sidebar border-b border-sidebar-border shrink-0">
       {/* Left: Logo */}
       <div className="flex items-center gap-3">
-        <span className="text-base font-bold tracking-tight text-white">⚡ HyperDash</span>
-        <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-medium hidden sm:inline">Performance Monitor</span>
+        <span className="text-base font-bold tracking-tight text-sidebar-foreground">⚡ HyperDash</span>
+        <span className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-medium hidden sm:inline">Performance Monitor</span>
       </div>
 
       {/* Right: Status indicators */}
