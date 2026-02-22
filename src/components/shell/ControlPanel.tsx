@@ -155,9 +155,9 @@ function ControlPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-              <SelectItem value="normal">Normal (2×)</SelectItem>
-              <SelectItem value="high">High (10×)</SelectItem>
-              <SelectItem value="extreme">Extreme (50×)</SelectItem>
+              <SelectItem value="normal">Normal (~125/sec)</SelectItem>
+              <SelectItem value="high">High (~500/sec)</SelectItem>
+              <SelectItem value="extreme">Extreme (~2000/sec)</SelectItem>
               </SelectContent>
             </Select>
           </div>

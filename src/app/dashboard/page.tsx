@@ -7,19 +7,19 @@ import LogWidget from "@/components/widgets/LogWidget";
 import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget";
 import ComparisonWidget from "@/components/widgets/ComparisonWidget";
 import { computeDataTimed } from "@/lib/utils";
-import useEventStore from "@/store/useEventStore";
+import useEventStore, { type EventData } from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
 import ControlPanel  from "@/components/shell/ControlPanel";
 import InspectModal from "@/components/shell/InspectModal";
 import DrillDownModal from "@/components/shell/DrillDownModal";
 
-const EVENT_MULTIPLIER_MAP = {
-  normal: 2,
-  high: 10,
-  extreme: 50,
-};
+const TICK_INTERVAL = 16; // ~60fps — high-frequency event generation
 
-const FIXED_INTERVAL = 500; // Fixed 500ms interval
+const EVENTS_PER_TICK = {
+  normal: 2,     // ~125 events/sec
+  high: 8,       // ~500 events/sec
+  extreme: 32,   // ~2000 events/sec
+};
 
 export default function DashboardPage() {
   useRenderCount("Dashboard page");
@@ -27,7 +27,7 @@ export default function DashboardPage() {
   /* ---------------- refs (NO RE-RENDERS) ---------------- */
 
   const workerRef = useRef<Worker | null>(null);
-  const bufferedTotalRef = useRef(0);
+  const pendingEventsRef = useRef<EventData[]>([]);
   const mainThreadArrRef = useRef<number[]>([]);
 
   const workerEnabledRef = useRef(
@@ -84,98 +84,83 @@ export default function DashboardPage() {
     return unsub;
   }, []);
 
-  /* ---------------- event generator ---------------- */
+  /* ---------------- event generator (high frequency) ---------------- */
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  const tick = () => {
-    if (cancelled) return;
+    const tick = () => {
+      if (cancelled) return;
 
-    const baseEvents = Math.floor(Math.random() * 16) + 5;
-    const multiplier = EVENT_MULTIPLIER_MAP[eventRateRef.current];
-    const incomingEvents = baseEvents * multiplier;
-    
-    // Check if we're in a new second
-    const now = Math.floor(Date.now() / 1000);
-    if (now !== currentSecondRef.current) {
-      currentSecondRef.current = now;
-      eventsThisSecondRef.current = 0;
-    }
+      const eventsPerTick = EVENTS_PER_TICK[eventRateRef.current];
+      const now = Date.now();
+      const nowSec = Math.floor(now / 1000);
 
-    // Apply degradation logic if enabled
-    let processedEvents = incomingEvents;
-    let droppedCount = 0;
-
-    if (degradeEnabledRef.current) {
-      const remainingCapacity = maxEventsPerSecondRef.current - eventsThisSecondRef.current;
-      
-      if (remainingCapacity <= 0) {
-        // Drop all events - capacity exhausted
-        droppedCount = incomingEvents;
-        processedEvents = 0;
-      } else if (incomingEvents > remainingCapacity) {
-        // Partial drop - only process what fits
-        processedEvents = remainingCapacity;
-        droppedCount = incomingEvents - remainingCapacity;
+      // Reset degradation counter on second boundary
+      if (nowSec !== currentSecondRef.current) {
+        currentSecondRef.current = nowSec;
+        eventsThisSecondRef.current = 0;
       }
-      
-      eventsThisSecondRef.current += processedEvents;
-    }
 
-    // Update dropped events counter if any were dropped
-    if (droppedCount > 0) {
-      if (isPausedRef.current) {
-        droppedWhilePausedRef.current += droppedCount;
-      } else {
-        // Flush any drops accumulated during pause + current
-        const totalDrops = droppedWhilePausedRef.current + droppedCount;
-        droppedWhilePausedRef.current = 0;
-        incrementDroppedEvents(totalDrops);
-      }
-    } else if (!isPausedRef.current && droppedWhilePausedRef.current > 0) {
-      // Flush leftover drops from pause period
-      incrementDroppedEvents(droppedWhilePausedRef.current);
-      droppedWhilePausedRef.current = 0;
-    }
+      let processedCount = 0;
+      let droppedCount = 0;
+      const source: 'worker' | 'main-thread' = workerEnabledRef.current ? 'worker' : 'main-thread';
 
-    // Publish per-second metric on second boundary, then accumulate current tick
-    if (now !== lastMetricSecondRef.current) {
-      if (!isPausedRef.current) {
-        setEventThisSec(eventsPerSecAccumulatorRef.current);
-
-        // Publish rolling average processing time
-        const times = processingTimesRef.current;
-        if (times.length > 0) {
-          const avg = times.reduce((a, b) => a + b, 0) / times.length;
-          setAvgProcessingMs(Math.round(avg * 100) / 100);
-          processingTimesRef.current = [];
+      // Create real event objects with per-event degradation
+      for (let i = 0; i < eventsPerTick; i++) {
+        if (degradeEnabledRef.current) {
+          if (eventsThisSecondRef.current >= maxEventsPerSecondRef.current) {
+            droppedCount++;
+            continue;
+          }
+          eventsThisSecondRef.current++;
         }
+
+        pendingEventsRef.current.push({
+          value: Math.floor(Math.random() * 100),
+          source,
+          timestamp: now,
+        });
+        processedCount++;
       }
-      eventsPerSecAccumulatorRef.current = 0;
-      lastMetricSecondRef.current = now;
-    }
-    eventsPerSecAccumulatorRef.current += processedEvents;
 
-    if (processedEvents > 0) {
-      if (workerEnabledRef.current && workerRef.current) {
-        workerRef.current.postMessage(processedEvents);
-      } else {
-        const { durationMs } = computeDataTimed(processedEvents, mainThreadArrRef.current);
-        processingTimesRef.current.push(durationMs);
-        bufferedTotalRef.current += processedEvents;
+      // Report drops (pause-aware)
+      if (droppedCount > 0) {
+        if (isPausedRef.current) {
+          droppedWhilePausedRef.current += droppedCount;
+        } else {
+          const totalDrops = droppedWhilePausedRef.current + droppedCount;
+          droppedWhilePausedRef.current = 0;
+          incrementDroppedEvents(totalDrops);
+        }
+      } else if (!isPausedRef.current && droppedWhilePausedRef.current > 0) {
+        incrementDroppedEvents(droppedWhilePausedRef.current);
+        droppedWhilePausedRef.current = 0;
       }
-    }
 
-    setTimeout(tick, FIXED_INTERVAL);
-  };
+      // Publish per-second metric on second boundary
+      if (nowSec !== lastMetricSecondRef.current) {
+        if (!isPausedRef.current) {
+          setEventThisSec(eventsPerSecAccumulatorRef.current);
 
-  tick(); // start loop
+          const times = processingTimesRef.current;
+          if (times.length > 0) {
+            const avg = times.reduce((a, b) => a + b, 0) / times.length;
+            setAvgProcessingMs(Math.round(avg * 100) / 100);
+            processingTimesRef.current = [];
+          }
+        }
+        eventsPerSecAccumulatorRef.current = 0;
+        lastMetricSecondRef.current = nowSec;
+      }
+      eventsPerSecAccumulatorRef.current += processedCount;
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+      setTimeout(tick, TICK_INTERVAL);
+    };
+
+    tick();
+    return () => { cancelled = true; };
+  }, []);
 
 
   /* ---------------- worker setup ---------------- */
@@ -186,7 +171,6 @@ useEffect(() => {
     );
 
     workerRef.current.onmessage = (e) => {
-      bufferedTotalRef.current += e.data.processed;
       if (typeof e.data.durationMs === 'number') {
         processingTimesRef.current.push(e.data.durationMs);
       }
@@ -208,20 +192,31 @@ useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     let previousBatchInterval = useEventStore.getState().batchInterval;
 
-    const tick = () => {
+    const flush = () => {
       if (isPausedRef.current) return;
 
-      const value = bufferedTotalRef.current;
-      if (value > 0) {
-        const source = workerEnabledRef.current ? 'worker' : 'main-thread';
-        flushBatch(value, source);
-        bufferedTotalRef.current = 0;
+      // Drain the pending events buffer
+      const events = pendingEventsRef.current;
+      if (events.length === 0) return;
+      pendingEventsRef.current = [];
+
+      const count = events.length;
+
+      // Run heavy computation on the batch
+      if (workerEnabledRef.current && workerRef.current) {
+        workerRef.current.postMessage(count);
+      } else {
+        const { durationMs } = computeDataTimed(count, mainThreadArrRef.current);
+        processingTimesRef.current.push(durationMs);
       }
+
+      // Commit real events to store (single atomic write)
+      flushBatch(events);
     };
 
     const start = (ms: number) => {
       clearInterval(interval);
-      interval = setInterval(tick, ms);
+      interval = setInterval(flush, ms);
     };
 
     start(previousBatchInterval);
