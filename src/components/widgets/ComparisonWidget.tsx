@@ -1,7 +1,7 @@
 "use client";
 
 import WidgetContainer from "./WidgetContainer";
-import useEventStore, { type Baseline } from "@/store/useEventStore";
+import useEventStore from "@/store/useEventStore";
 
 /** Render a delta indicator: green ↑ for improvements, red ↓ for regressions. */
 function Delta({

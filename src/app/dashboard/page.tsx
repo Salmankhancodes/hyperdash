@@ -6,6 +6,7 @@ import LiveChartWidget from "@/components/widgets/LiveChartWidget";
 import LogWidget from "@/components/widgets/LogWidget";
 import PerformanceStatsWidget from "@/components/widgets/PerformanceStatsWidget";
 import ComparisonWidget from "@/components/widgets/ComparisonWidget";
+import { applyDegradationLimit, averageOf } from "@/lib/pipeline";
 import { computeDataTimed } from "@/lib/utils";
 import useEventStore, { type EventData } from "@/store/useEventStore";
 import { useRenderCount } from "@/hooks/useRenderCount";
@@ -60,6 +61,9 @@ export default function DashboardPage() {
 
   // Processing time tracking (rolling average)
   const processingTimesRef = useRef<number[]>([]);
+  const workerBusyRef = useRef(false);
+  const inflightWorkerBatchRef = useRef<EventData[] | null>(null);
+  const completedWhilePausedRef = useRef<{ events: EventData[]; durationMs: number }[]>([]);
 
   /* ---------------- store actions (stable) ---------------- */
 
@@ -89,12 +93,37 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const publishSecondMetrics = (nextSecond: number) => {
+      if (!isPausedRef.current) {
+        setEventThisSec(eventsPerSecAccumulatorRef.current);
+
+        const avg = averageOf(processingTimesRef.current);
+        if (avg > 0) {
+          setAvgProcessingMs(Math.round(avg * 100) / 100);
+          processingTimesRef.current = [];
+        }
+      }
+
+      eventsPerSecAccumulatorRef.current = 0;
+      lastMetricSecondRef.current = nextSecond;
+    };
+
     const tick = () => {
       if (cancelled) return;
 
-      const eventsPerTick = EVENTS_PER_TICK[eventRateRef.current];
       const now = Date.now();
       const nowSec = Math.floor(now / 1000);
+
+      if (nowSec !== lastMetricSecondRef.current) {
+        publishSecondMetrics(nowSec);
+      }
+
+      if (isPausedRef.current || (workerEnabledRef.current && workerBusyRef.current)) {
+        setTimeout(tick, TICK_INTERVAL);
+        return;
+      }
+
+      const eventsPerTick = EVENTS_PER_TICK[eventRateRef.current];
 
       // Reset degradation counter on second boundary
       if (nowSec !== currentSecondRef.current) {
@@ -102,34 +131,31 @@ export default function DashboardPage() {
         eventsThisSecondRef.current = 0;
       }
 
-      let processedCount = 0;
-      let droppedCount = 0;
+      const { acceptedEvents, droppedEvents, nextSecondCount } = applyDegradationLimit(
+        eventsPerTick,
+        eventsThisSecondRef.current,
+        degradeEnabledRef.current,
+        maxEventsPerSecondRef.current,
+      );
+
+      eventsThisSecondRef.current = nextSecondCount;
+
       const source: 'worker' | 'main-thread' = workerEnabledRef.current ? 'worker' : 'main-thread';
 
-      // Create real event objects with per-event degradation
-      for (let i = 0; i < eventsPerTick; i++) {
-        if (degradeEnabledRef.current) {
-          if (eventsThisSecondRef.current >= maxEventsPerSecondRef.current) {
-            droppedCount++;
-            continue;
-          }
-          eventsThisSecondRef.current++;
-        }
-
+      for (let i = 0; i < acceptedEvents; i++) {
         pendingEventsRef.current.push({
           value: Math.floor(Math.random() * 100),
           source,
           timestamp: now,
         });
-        processedCount++;
       }
 
       // Report drops (pause-aware)
-      if (droppedCount > 0) {
+      if (droppedEvents > 0) {
         if (isPausedRef.current) {
-          droppedWhilePausedRef.current += droppedCount;
+          droppedWhilePausedRef.current += droppedEvents;
         } else {
-          const totalDrops = droppedWhilePausedRef.current + droppedCount;
+          const totalDrops = droppedWhilePausedRef.current + droppedEvents;
           droppedWhilePausedRef.current = 0;
           incrementDroppedEvents(totalDrops);
         }
@@ -138,29 +164,12 @@ export default function DashboardPage() {
         droppedWhilePausedRef.current = 0;
       }
 
-      // Publish per-second metric on second boundary
-      if (nowSec !== lastMetricSecondRef.current) {
-        if (!isPausedRef.current) {
-          setEventThisSec(eventsPerSecAccumulatorRef.current);
-
-          const times = processingTimesRef.current;
-          if (times.length > 0) {
-            const avg = times.reduce((a, b) => a + b, 0) / times.length;
-            setAvgProcessingMs(Math.round(avg * 100) / 100);
-            processingTimesRef.current = [];
-          }
-        }
-        eventsPerSecAccumulatorRef.current = 0;
-        lastMetricSecondRef.current = nowSec;
-      }
-      eventsPerSecAccumulatorRef.current += processedCount;
-
       setTimeout(tick, TICK_INTERVAL);
     };
 
     tick();
     return () => { cancelled = true; };
-  }, []);
+  }, [incrementDroppedEvents, setAvgProcessingMs, setEventThisSec]);
 
 
   /* ---------------- worker setup ---------------- */
@@ -171,12 +180,31 @@ export default function DashboardPage() {
     );
 
     workerRef.current.onmessage = (e) => {
-      if (typeof e.data.durationMs === 'number') {
-        processingTimesRef.current.push(e.data.durationMs);
+      workerBusyRef.current = false;
+
+      const completedBatch = inflightWorkerBatchRef.current;
+      inflightWorkerBatchRef.current = null;
+
+      if (!completedBatch || typeof e.data.durationMs !== 'number') {
+        return;
       }
+
+      if (isPausedRef.current) {
+        completedWhilePausedRef.current.push({
+          events: completedBatch,
+          durationMs: e.data.durationMs,
+        });
+        return;
+      }
+
+      processingTimesRef.current.push(e.data.durationMs);
+      eventsPerSecAccumulatorRef.current += completedBatch.length;
+      flushBatch(completedBatch);
     };
 
     workerRef.current.onerror = (e) => {
+      workerBusyRef.current = false;
+      inflightWorkerBatchRef.current = null;
       console.error("Worker error:", e.message);
     };
 
@@ -184,7 +212,7 @@ export default function DashboardPage() {
       workerRef.current?.terminate();
       workerRef.current = null;
     };
-  }, []);
+  }, [flushBatch]);
 
   /* ---------------- batching flush ---------------- */
 
@@ -192,8 +220,28 @@ export default function DashboardPage() {
     let interval: ReturnType<typeof setInterval>;
     let previousBatchInterval = useEventStore.getState().batchInterval;
 
+    const commitCompletedWhilePaused = () => {
+      if (completedWhilePausedRef.current.length === 0 || isPausedRef.current) {
+        return;
+      }
+
+      for (const batch of completedWhilePausedRef.current) {
+        processingTimesRef.current.push(batch.durationMs);
+        eventsPerSecAccumulatorRef.current += batch.events.length;
+        flushBatch(batch.events);
+      }
+
+      completedWhilePausedRef.current = [];
+    };
+
     const flush = () => {
       if (isPausedRef.current) return;
+
+      commitCompletedWhilePaused();
+
+      if (workerEnabledRef.current && workerBusyRef.current) {
+        return;
+      }
 
       // Drain the pending events buffer
       const events = pendingEventsRef.current;
@@ -204,14 +252,17 @@ export default function DashboardPage() {
 
       // Run heavy computation on the batch
       if (workerEnabledRef.current && workerRef.current) {
+        workerBusyRef.current = true;
+        inflightWorkerBatchRef.current = events;
         workerRef.current.postMessage(count);
       } else {
         const { durationMs } = computeDataTimed(count, mainThreadArrRef.current);
         processingTimesRef.current.push(durationMs);
-      }
+        eventsPerSecAccumulatorRef.current += events.length;
 
-      // Commit real events to store (single atomic write)
-      flushBatch(events);
+        // Commit only after compute completes so displayed throughput matches processed work.
+        flushBatch(events);
+      }
     };
 
     const start = (ms: number) => {
@@ -232,7 +283,7 @@ export default function DashboardPage() {
       clearInterval(interval);
       unsub();
     };
-  }, []);
+  }, [flushBatch]);
 
   /* ---------------- render ---------------- */
 

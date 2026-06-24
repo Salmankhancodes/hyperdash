@@ -5,9 +5,10 @@ interface FPSCounterProps {
   /** Optional callback fired every second with the latest FPS value.
    *  Used to surface FPS to the store for baseline comparisons. */
   onFps?: (fps: number) => void;
+  testId?: string;
 }
 
-export function FPSCounter({ onFps }: FPSCounterProps) {
+export function FPSCounter({ onFps, testId }: FPSCounterProps) {
   // FPS is kept local intentionally to avoid global re-renders.
   // This mirrors how performance metrics are usually observed, not stored.
 
@@ -43,5 +44,5 @@ export function FPSCounter({ onFps }: FPSCounterProps) {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  return <span>{fps}</span>;
+  return <span data-testid={testId}>{fps}</span>;
 }

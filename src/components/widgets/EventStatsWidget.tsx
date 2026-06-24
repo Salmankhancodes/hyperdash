@@ -14,7 +14,7 @@ const EventStatsWidget = () => {
            title="Events successfully processed per second. This is the effective throughput after degradation filtering.">
           Current Throughput
         </p>
-        <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{eventThisSec}</p>
+        <p className="text-3xl font-bold text-blue-600 dark:text-blue-400" data-testid="throughput-value">{eventThisSec}</p>
         <p className="text-xs text-muted-foreground mt-1">processed events per second</p>
       </div>
 
@@ -24,7 +24,7 @@ const EventStatsWidget = () => {
            title="Cumulative count of events that were computed and committed to the UI since the session started.">
           Total Processed
         </p>
-        <p className="text-2xl font-semibold">{totalEvents.toLocaleString()}</p>
+        <p className="text-2xl font-semibold" data-testid="total-processed-value">{totalEvents.toLocaleString()}</p>
         <p className="text-xs text-muted-foreground mt-1">since session start</p>
       </div>
     </div>

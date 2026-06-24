@@ -1,9 +1,10 @@
 "use client"
 
 import { useRenderCount } from "@/hooks/useRenderCount"
+import { type ThroughputSample } from "@/lib/pipeline"
 import WidgetContainer from "./WidgetContainer"
 import useEventStore from "@/store/useEventStore"
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useCallback, useState } from "react"
 import {
   LineChart,
   Line,
@@ -14,59 +15,18 @@ import {
   Tooltip,
 } from "recharts"
 
-interface ChartPoint {
-  count: number;      // events in this bucket
-  timestamp: number;  // bucket start time
-}
-
-const MAX_BUCKETS = 40;            // ~40 points = well-spaced, clickable
-const BUCKET_MS = 1000;            // 1 second per bucket
 const DRILL_WINDOW_MS = 2000;      // ±1s around clicked point
 
 const LiveChartWidget = () => {
   useRenderCount('LiveChartWidget');
-  const renderBufferRef = useRef<{ value: number; source: 'worker' | 'main-thread'; timestamp: number }[]>([]);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
-  const eventsBuffer = useEventStore((s) => s.eventsBuffer);
+  const throughputHistory = useEventStore((s) => s.throughputHistory);
   const drillWindow = useEventStore((s) => s.drillWindow);
   const startDrill = useEventStore((s) => s.startDrill);
-
-  // Freeze chart updates while mouse is inside (so user can click)
-  const isHoveringRef = useRef(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isHoveringRef.current) return;
-
-      setChartData(() => {
-        const buffer = renderBufferRef.current;
-        if (buffer.length === 0) return [];
-
-        // Build buckets purely from the current eventsBuffer (no carry-forward)
-        const bucketMap = new Map<number, number>();
-        for (const e of buffer) {
-          const bucketKey = Math.floor(e.timestamp / BUCKET_MS) * BUCKET_MS;
-          bucketMap.set(bucketKey, (bucketMap.get(bucketKey) ?? 0) + 1);
-        }
-
-        // Sort by timestamp, keep last N buckets
-        return Array.from(bucketMap.entries())
-          .sort((a, b) => a[0] - b[0])
-          .slice(-MAX_BUCKETS)
-          .map(([timestamp, count]) => ({ timestamp, count }));
-      });
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    renderBufferRef.current = eventsBuffer;
-  }, [eventsBuffer]);
+  const [frozenHistory, setFrozenHistory] = useState<ThroughputSample[] | null>(null);
 
   // Click handler called directly from the activeDot SVG element
   const handlePointClick = useCallback((index: number) => {
-    const point = chartData[index];
+    const point = throughputHistory[index];
     if (!point) return;
     const halfWindow = DRILL_WINDOW_MS / 2;
     startDrill({
@@ -74,9 +34,11 @@ const LiveChartWidget = () => {
       end: point.timestamp + halfWindow,
       source: 'chart',
     });
-  }, [chartData, startDrill]);
+  }, [startDrill, throughputHistory]);
 
-  const formattedData = chartData.map((p, i) => ({
+  const visibleHistory = frozenHistory ?? throughputHistory;
+
+  const formattedData = visibleHistory.map((p, i) => ({
     x: i,
     y: p.count,
     timestamp: p.timestamp,
@@ -89,9 +51,9 @@ const LiveChartWidget = () => {
           <p className="text-xs text-muted-foreground">Hover to freeze, click a point to drill down</p>
         )}
         <div
-          className="h-[240px] w-full"
-          onMouseEnter={() => { isHoveringRef.current = true; }}
-          onMouseLeave={() => { isHoveringRef.current = false; }}
+          className="h-60 w-full"
+          onMouseEnter={() => { setFrozenHistory(throughputHistory); }}
+          onMouseLeave={() => { setFrozenHistory(null); }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={formattedData}>
@@ -110,14 +72,20 @@ const LiveChartWidget = () => {
                   border: "1px solid #374151",
                   borderRadius: "4px"
                 }}
-                labelFormatter={() => ""}
-                formatter={(val: number | undefined) => [`${val ?? 0} events`, "Processed"]}
+                labelFormatter={(_, payload) => {
+                  const point = payload?.[0]?.payload as { timestamp?: number } | undefined;
+                  return point?.timestamp
+                    ? new Date(point.timestamp).toLocaleTimeString()
+                    : "";
+                }}
+                formatter={(val: number | undefined) => [`${val ?? 0} events/sec`, "Processed"]}
               />
               <Line
                 type="monotone"
                 dataKey="y"
                 stroke="#3b82f6"
                 dot={{ r: 3, fill: "#3b82f6", cursor: "pointer" }}
+                isAnimationActive={frozenHistory === null}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 activeDot={(props: any) => {
                   const { cx, cy, index } = props as { cx: number; cy: number; index: number };

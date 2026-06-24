@@ -1,6 +1,10 @@
 import { create } from "zustand";
-
-const MAX_EVENTS = 2000;
+import {
+  appendThroughputSample,
+  MAX_RETAINED_EVENTS,
+  type ThroughputSample,
+  mergeBufferedEvents,
+} from "@/lib/pipeline";
 
 export interface EventData {
   value: number;
@@ -12,6 +16,7 @@ interface Snapshot {
   totalEvents: number;
   eventThisSec: number;
   eventsBuffer: EventData[];
+  throughputHistory: ThroughputSample[];
   flushCount: number;
   droppedEvents: number;
   workerEnabled: boolean;
@@ -44,6 +49,7 @@ interface EventState {
   eventThisSec: number;
   totalEvents: number;
   eventsBuffer: EventData[];
+  throughputHistory: ThroughputSample[];
   workerEnabled: boolean;
   batchInterval: number;
   eventRatePreset: 'normal' | 'high' | 'extreme'
@@ -83,6 +89,7 @@ const useEventStore = create<EventState>((set) => ({
   eventThisSec: 0,
   totalEvents: 0,
   eventsBuffer: [],
+  throughputHistory: [],
   workerEnabled: true,
   batchInterval: 100,
   flushCount: 0,
@@ -102,7 +109,14 @@ const useEventStore = create<EventState>((set) => ({
     set((state) => ({
       flushCount: state.flushCount + 1,
     })),
-  setEventThisSec: (val) => set({ eventThisSec: val }),
+  setEventThisSec: (val) =>
+    set((state) => ({
+      eventThisSec: val,
+      throughputHistory: appendThroughputSample(state.throughputHistory, {
+        timestamp: Date.now(),
+        count: val,
+      }),
+    })),
   toggleWorker: () => set((state) => {
     return {
       ...state,
@@ -114,15 +128,14 @@ const useEventStore = create<EventState>((set) => ({
   // Single atomic flush: commit real events in ONE set() call
   flushBatch: (newEvents) =>
     set((state) => {
-      const merged = [...state.eventsBuffer, ...newEvents];
-
       return {
         flushCount: state.flushCount + 1,
         totalEvents: state.totalEvents + newEvents.length,
-        eventsBuffer:
-          merged.length > MAX_EVENTS
-            ? merged.slice(merged.length - MAX_EVENTS)
-            : merged,
+        eventsBuffer: mergeBufferedEvents(
+          state.eventsBuffer,
+          newEvents,
+          MAX_RETAINED_EVENTS,
+        ),
       };
     }),
   setEventRatePreset: (rate) => set({ eventRatePreset: rate }),
@@ -147,6 +160,7 @@ const useEventStore = create<EventState>((set) => ({
           totalEvents: state.totalEvents,
           eventThisSec: state.eventThisSec,
           eventsBuffer: state.eventsBuffer,
+          throughputHistory: state.throughputHistory,
           flushCount: state.flushCount,
           droppedEvents: state.droppedEvents,
           workerEnabled: state.workerEnabled,
@@ -167,6 +181,7 @@ const useEventStore = create<EventState>((set) => ({
         totalEvents: state.totalEvents,
         eventThisSec: state.eventThisSec,
         eventsBuffer: state.eventsBuffer,
+        throughputHistory: state.throughputHistory,
         flushCount: state.flushCount,
         droppedEvents: state.droppedEvents,
         workerEnabled: state.workerEnabled,

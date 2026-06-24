@@ -1,6 +1,6 @@
 import { computeDataTimed } from "@/lib/utils";
 
-let arr: number[] = [];
+const arr: number[] = [];
 
 self.onmessage = (e) => {
   const newEvents: number = e.data;

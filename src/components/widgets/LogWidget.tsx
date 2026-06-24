@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import WidgetContainer from "./WidgetContainer";
 import useEventStore from "@/store/useEventStore";
@@ -13,9 +13,13 @@ export default function LogsWidget() {
   useRenderCount('Logwidget')
   const parentRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const previousLengthRef = useRef(0);
+  const previousTotalEventsRef = useRef(0);
 
   const events = useEventStore((s) => s.eventsBuffer);
+  const totalEvents = useEventStore((s) => s.totalEvents);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => parentRef.current,
@@ -41,6 +45,28 @@ export default function LogsWidget() {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    if (!el) {
+      previousLengthRef.current = events.length;
+      previousTotalEventsRef.current = totalEvents;
+      return;
+    }
+
+    const committedEvents = totalEvents - previousTotalEventsRef.current;
+    const retainedShift = Math.max(
+      0,
+      previousLengthRef.current + committedEvents - events.length,
+    );
+
+    if (!shouldAutoScrollRef.current && retainedShift > 0) {
+      el.scrollTop = Math.max(0, el.scrollTop - retainedShift * ROW_HEIGHT);
+    }
+
+    previousLengthRef.current = events.length;
+    previousTotalEventsRef.current = totalEvents;
+  }, [events.length, totalEvents]);
+
   // Auto-scroll ONLY if user didn’t scroll up
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
@@ -53,7 +79,7 @@ export default function LogsWidget() {
         {/* Virtualization Badge */}
         <div className="flex items-center justify-between">
           <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded font-medium">
-            Virtualized (10k+ rows supported)
+            Virtualized (20k rows retained)
           </span>
           <span className="text-xs text-muted-foreground">
             {events.length} rows

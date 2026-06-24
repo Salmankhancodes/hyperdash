@@ -29,7 +29,7 @@ const PerformanceStatsWidget = () => {
             FPS (Main Thread)
           </p>
           <p className="text-lg font-semibold">
-            <FPSCounter onFps={handleFps} />
+            <FPSCounter onFps={handleFps} testId="fps-value" />
           </p>
         </div>
 
@@ -38,7 +38,7 @@ const PerformanceStatsWidget = () => {
              title="Average wall-clock time per computeData() call. Lower = less thread blocking.">
             Avg Processing Time
           </p>
-          <p className="text-lg font-semibold">
+          <p className="text-lg font-semibold" data-testid="avg-processing-value">
             {avgProcessingMs > 0 ? `${avgProcessingMs} ms` : (
               <span className="text-sm font-normal text-muted-foreground">
                 Waiting for processing data…
@@ -66,7 +66,7 @@ const PerformanceStatsWidget = () => {
              title="Events discarded to preserve UI responsiveness when ingestion exceeds the configured max events/second.">
             Dropped Events
           </p>
-          <p className="text-lg font-semibold">
+          <p className="text-lg font-semibold" data-testid="dropped-events-value">
             <span className={droppedEvents > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
               {droppedEvents.toLocaleString()}
             </span>

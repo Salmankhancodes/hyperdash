@@ -129,7 +129,7 @@ function ControlPanel() {
               value={String(batchInterval)}
               onValueChange={value => setBatchInterval(Number(value))}
             >
-              <SelectTrigger className="w-full mt-1">
+              <SelectTrigger className="w-full mt-1" aria-label="Batch Flush Interval">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -151,7 +151,7 @@ function ControlPanel() {
                 setEventRatePreset(value as "normal" | "high" | "extreme")
               }
             >
-              <SelectTrigger className="w-full mt-1">
+              <SelectTrigger className="w-full mt-1" aria-label="Event Volume">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -170,7 +170,7 @@ function ControlPanel() {
               value={String(maxEventsPerSecond)}
               onValueChange={value => setMaxEventsPerSecond(Number(value))}
             >
-              <SelectTrigger className="w-full mt-1">
+              <SelectTrigger className="w-full mt-1" aria-label="Max Events Per Second">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
