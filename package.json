@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --import tsx --test src/**/*.test.ts",
-    "benchmark": "node scripts/benchmark.mjs"
+    "benchmark": "node scripts/benchmark.mjs",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.6",

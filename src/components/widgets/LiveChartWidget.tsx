@@ -78,7 +78,11 @@ const LiveChartWidget = () => {
                     ? new Date(point.timestamp).toLocaleTimeString()
                     : "";
                 }}
-                formatter={(val: number | undefined) => [`${val ?? 0} events/sec`, "Processed"]}
+                formatter={(value: string | number | readonly (string | number)[] | undefined) => {
+                  const rawValue = Array.isArray(value) ? value[0] : value;
+                  const count = typeof rawValue === "number" ? rawValue : Number(rawValue ?? 0);
+                  return [`${Number.isFinite(count) ? count : 0} events/sec`, "Processed"];
+                }}
               />
               <Line
                 type="monotone"
